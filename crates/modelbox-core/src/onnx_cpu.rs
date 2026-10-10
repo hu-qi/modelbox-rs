@@ -53,8 +53,8 @@ impl FlowUnit for OnnxCpuFlowUnit {
             Some(Value::TensorF32(tensor)) => tensor,
             _ => return Err(onnx_error("expected tensor_f32 input")),
         };
-        let array = TensorRef::from_array_view((input.shape(), input.data()))
-            .map_err(onnx_error)?;
+        let array =
+            TensorRef::from_array_view((input.shape(), input.data())).map_err(onnx_error)?;
         let mut session = self.session.lock().map_err(onnx_error)?;
         let outputs = session.run(ort::inputs![array]).map_err(onnx_error)?;
         let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(onnx_error)?;
