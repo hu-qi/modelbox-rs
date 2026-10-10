@@ -219,15 +219,14 @@ impl ExecutionPlan {
         if visited != nodes.len() {
             return Err(FlowError::InvalidGraph("graph contains a cycle".to_owned()));
         }
-        let terminal_ports: Vec<_> = nodes
-            .iter()
-            .enumerate()
-            .flat_map(|(node_index, node)| {
-                (0..node.unit.outputs().len())
-                    .filter(|&port| !wired_outputs.contains(&(node_index, port)))
-                    .map(move |port| (node_index, port))
-            })
-            .collect();
+        let mut terminal_ports = Vec::new();
+        for (node_index, node) in nodes.iter().enumerate() {
+            for port in 0..node.unit.outputs().len() {
+                if !wired_outputs.contains(&(node_index, port)) {
+                    terminal_ports.push((node_index, port));
+                }
+            }
+        }
         if spec.edges.is_empty() || terminal_ports.is_empty() {
             return Err(FlowError::InvalidGraph(
                 "graph requires edges and at least one terminal output".to_owned(),
