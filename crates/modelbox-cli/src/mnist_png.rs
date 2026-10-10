@@ -20,7 +20,9 @@ fn decode_mnist_png<R: BufRead + Seek>(input: R) -> modelbox_core::Result<Tensor
         return Err(png_error("animated PNG is not supported"));
     }
     if reader.output_color_type() != (png::ColorType::Grayscale, png::BitDepth::Eight) {
-        return Err(png_error("requires an 8-bit grayscale PNG (not RGB or palette)"));
+        return Err(png_error(
+            "requires an 8-bit grayscale PNG (not RGB or palette)",
+        ));
     }
     let size = reader
         .output_buffer_size()
@@ -33,7 +35,10 @@ fn decode_mnist_png<R: BufRead + Seek>(input: R) -> modelbox_core::Result<Tensor
     if frame.width != 28 || frame.height != 28 || frame.buffer_size() != 784 {
         return Err(png_error("unexpected PNG frame dimensions"));
     }
-    let values = buffer.into_iter().map(|pixel| f32::from(pixel) / 255.0).collect();
+    let values = buffer
+        .into_iter()
+        .map(|pixel| f32::from(pixel) / 255.0)
+        .collect();
     TensorF32::new(vec![1, 1, 28, 28], values)
 }
 
@@ -49,12 +54,15 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
     let image = &args[1];
     let tensor = load_mnist_png(image)?;
     let mut runtime = Runtime::default();
-    runtime.registry_mut().register(Arc::new(OnnxCpuFlowUnit::load(model)?))?;
+    runtime
+        .registry_mut()
+        .register(Arc::new(OnnxCpuFlowUnit::load(model)?))?;
     let graph: GraphSpec = serde_json::from_str(crate::ONNX_GRAPH)?;
     let result = runtime.run(&graph, Value::TensorF32(tensor))?;
-    let captured = result.outputs.get("result.out").ok_or_else(|| {
-        FlowError::Execution("MNIST graph did not capture result.out".to_owned())
-    })?;
+    let captured = result
+        .outputs
+        .get("result.out")
+        .ok_or_else(|| FlowError::Execution("MNIST graph did not capture result.out".to_owned()))?;
     let scores = match captured.as_slice() {
         [Value::TensorF32(tensor)] if tensor.shape() == [1, 10] => tensor.data(),
         _ => return Err(png_error("expected one [1,10] float32 logit tensor")),
@@ -88,10 +96,8 @@ mod tests {
 
     #[test]
     fn checked_in_png_matches_checked_in_tensor() {
-        let decoded = decode_mnist_png(Cursor::new(include_bytes!(
-            "../../../examples/mnist-1.png"
-        )))
-        .unwrap();
+        let decoded =
+            decode_mnist_png(Cursor::new(include_bytes!("../../../examples/mnist-1.png"))).unwrap();
         let expected: TensorF32 =
             serde_json::from_str(include_str!("../../../examples/mnist-1-input.json")).unwrap();
         assert_eq!(decoded, expected);
