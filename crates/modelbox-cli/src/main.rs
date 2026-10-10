@@ -20,6 +20,7 @@ fn usage() -> &'static str {
   modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
   modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
+  modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
 
 Text examples use core.input; ONNX inference is an opt-in feature.
 Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
@@ -64,6 +65,8 @@ fn execute() -> Result<(), FlowError> {
         "bench" => bench::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "bench-batch" => bench::run_batch(args.collect())?,
+        #[cfg(feature = "onnx")]
+        "bench-overhead" => bench::run_overhead(args.collect())?,
         #[cfg(feature = "onnx")]
         "infer" => {
             use std::sync::Arc;

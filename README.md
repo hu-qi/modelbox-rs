@@ -96,3 +96,14 @@ cargo run --release -p modelbox-cli --features onnx -- \
 Batch preparation, graph compilation and ONNX session loading are excluded from the timed interval. Thread startup/shutdown, bounded queues, CPU ONNX inference, and terminal output capture **are included**. The command accepts up to 10,000 items, with a 64 MiB input-batch safety limit. It is not a continuous streaming benchmark and retains all outputs in memory, so its throughput should not be equated with a long-running RTSP pipeline.
 
 The single-call baseline from an Apple Silicon Mac mini is recorded in [benchmarks/baselines/2026-10-11-macos-arm64-relu.json](benchmarks/baselines/2026-10-11-macos-arm64-relu.json). Hardware subtype, macOS version, and a true sustained throughput result remain unrecorded.
+
+### Comparing ONNX execution against graph-only overhead
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-overhead examples/relu-input.json 1000 10
+```
+
+`bench-overhead` runs an identically shaped three-node tensor graph, replacing `onnx.cpu` with a no-op tensor identity operator. Its throughput provides a first control group for bounded-channel and worker/capture overhead. It is **not** a direct measurement of ONNX kernel time. Run `bench-batch` on the same machine with the same item count, in alternating orders, and repeat measurements before prioritizing runtime optimizations.
+
+The user-reported 1,000-item ONNX Relu throughput result is stored in [benchmarks/baselines/2026-10-11-macos-arm64-relu-batch.json](benchmarks/baselines/2026-10-11-macos-arm64-relu-batch.json).

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported local release output (single invocation, not independently reproduced or averaged)",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "macos_version": null,
+    "apple_soc": null,
+    "rustc_version": null,
+    "git_commit": null,
+    "profile": "release"
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 1000 10",
+  "measurement": {
+    "aggregate_output_sum": 5000,
+    "batch_items": 1000,
+    "benchmark": "onnx_cpu_finite_batch_throughput",
+    "elapsed_ms": 2.334583,
+    "excludes_input_batch_construction": true,
+    "excludes_onnx_session_load": true,
+    "execution_provider": "CPU",
+    "includes_output_capture": true,
+    "includes_worker_thread_startup_and_teardown": true,
+    "input_batch_bytes": 12000,
+    "input_shape": [
+      3
+    ],
+    "model_path": "examples/relu.onnx",
+    "output_shape": [
+      3
+    ],
+    "throughput_items_per_sec": 428342.02082341904,
+    "timing_scope": "single_run_plan_over_preconstructed_finite_batch",
+    "warmup_single_frame_calls": 10
+  },
+  "limitations": [
+    "Three-element synthetic Relu model is not representative of a real vision model.",
+    "This is a single finite batch, not steady-state stream throughput.",
+    "Hardware subtype, exact OS and variability across repeated runs were not supplied.",
+    "ONNX Runtime session loading and input-batch preparation are excluded."
+  ]
+}

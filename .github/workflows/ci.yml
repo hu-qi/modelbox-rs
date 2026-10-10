@@ -58,6 +58,8 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench examples/relu.onnx examples/relu-input.json 5 1
       - name: Batch throughput smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 32 2
+      - name: Tensor graph overhead smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
       - name: Bench unit tests
         run: cargo test -p modelbox-cli --features onnx
 
@@ -83,3 +85,5 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench examples/relu.onnx examples/relu-input.json 5 1
       - name: Batch throughput smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 32 2
+      - name: Tensor graph overhead smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
