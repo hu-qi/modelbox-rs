@@ -65,11 +65,7 @@ fn measure(
     for value in values {
         match value {
             Value::TensorF32(tensor) => {
-                checksum += tensor
-                    .data()
-                    .iter()
-                    .map(|&v| f64::from(v))
-                    .sum::<f64>();
+                checksum += tensor.data().iter().map(|&v| f64::from(v)).sum::<f64>();
             }
             _ => {
                 return Err(FlowError::Execution(
@@ -88,9 +84,8 @@ fn summary(observations: &[u128], items: usize) -> JsonValue {
         let index = (ordered.len() * percent).div_ceil(100) - 1;
         ordered[index] as f64 / 1_000_000.0
     };
-    let mean_ms = ordered.iter().map(|&ns| ns as f64).sum::<f64>()
-        / ordered.len() as f64
-        / 1_000_000.0;
+    let mean_ms =
+        ordered.iter().map(|&ns| ns as f64).sum::<f64>() / ordered.len() as f64 / 1_000_000.0;
     let median_ms = percentile(50);
     json!({
         "elapsed_ms": {
@@ -215,15 +210,24 @@ mod tests {
     #[test]
     fn number_bounds() {
         assert_eq!(bounded_number(None, 9, 3, 31, "rounds").unwrap(), 9);
-        assert_eq!(bounded_number(Some(&"3".to_owned()), 9, 3, 31, "rounds").unwrap(), 3);
+        assert_eq!(
+            bounded_number(Some(&"3".to_owned()), 9, 3, 31, "rounds").unwrap(),
+            3
+        );
         assert!(bounded_number(Some(&"2".to_owned()), 9, 3, 31, "rounds").is_err());
         assert!(bounded_number(Some(&"32".to_owned()), 9, 3, 31, "rounds").is_err());
-        assert_eq!(bounded_number(Some(&"0".to_owned()), 10, 0, 1000, "warmup").unwrap(), 0);
+        assert_eq!(
+            bounded_number(Some(&"0".to_owned()), 10, 0, 1000, "warmup").unwrap(),
+            0
+        );
     }
 
     #[test]
     fn sample_summary_percentiles() {
-        let s = summary(&[2_000_000, 1_000_000, 5_000_000, 3_000_000, 4_000_000], 1000);
+        let s = summary(
+            &[2_000_000, 1_000_000, 5_000_000, 3_000_000, 4_000_000],
+            1000,
+        );
         assert_eq!(s["elapsed_ms"]["p50"].as_f64().unwrap(), 3.0);
         assert_eq!(s["elapsed_ms"]["p95"].as_f64().unwrap(), 5.0);
         assert_eq!(s["elapsed_ms"]["mean"].as_f64().unwrap(), 3.0);
