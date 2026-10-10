@@ -114,6 +114,7 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
                 "mean": mean_ms
             },
             "throughput_items_per_sec": if mean_ms > 0.0 { 1000.0 / mean_ms } else { 0.0 },
+            "throughput_is_estimated_from_mean_latency": true,
             "last_output_sum": last_checksum,
             "includes_worker_thread_startup": true,
             "excludes_onnx_session_load": true
@@ -124,7 +125,15 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{nearest_rank, parse_count};
+    use super::{batch_input_bytes, nearest_rank, parse_count};
+    use modelbox_core::TensorF32;
+
+    #[test]
+    fn batch_input_budget_is_bounded() {
+        let input = TensorF32::new(vec![2], vec![1.0, 2.0]).unwrap();
+        assert_eq!(batch_input_bytes(&input, 10).unwrap(), 80);
+        assert!(batch_input_bytes(&input, 10_000_000).is_err());
+    }
 
     #[test]
     fn percentile_uses_nearest_rank() {
@@ -143,4 +152,125 @@ mod tests {
         );
         assert_eq!(parse_count(None, 100, 10_000, "iterations").unwrap(), 100);
     }
+}
+
+const MAX_BATCH_BYTES: usize = 64 * 1024 * 1024;
+
+fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError> {
+    let bytes = input
+        .data()
+        .len()
+        .checked_mul(std::mem::size_of::<f32>())
+        .and_then(|size| size.checked_mul(count))
+        .ok_or_else(|| FlowError::Execution("batch byte size overflow".to_owned()))?;
+    if bytes > MAX_BATCH_BYTES {
+        return Err(FlowError::Execution(format!(
+            "batch input exceeds {} MiB safety limit",
+            MAX_BATCH_BYTES / 1024 / 1024
+        )));
+    }
+    Ok(bytes)
+}
+
+/// Measures one actual finite-batch pipeline invocation, not the reciprocal
+/// of independently measured single-request latency.
+///
+/// The entire input batch and graph execution plan are built before timing;
+/// worker startup, inference, backpressure, capture and shutdown are timed.
+pub(crate) fn run_batch(args: Vec<String>) -> Result<(), FlowError> {
+    if args.len() < 2 || args.len() > 4 {
+        return Err(FlowError::Execution(usage().to_owned()));
+    }
+    let items = parse_count(args.get(2), 1_000, MAX_ITERATIONS, "items")?;
+    let warmup = match args.get(3) {
+        Some(raw) => raw
+            .parse::<usize>()
+            .map_err(|_| FlowError::Execution("warmup must be 0..=1000".to_owned()))?,
+        None => 10,
+    };
+    if warmup > MAX_WARMUP {
+        return Err(FlowError::Execution("warmup must be 0..=1000".to_owned()));
+    }
+
+    let input: TensorF32 = serde_json::from_str(&fs::read_to_string(&args[1])?)?;
+    let input_batch_bytes = batch_input_bytes(&input, items)?;
+    let graph: GraphSpec = serde_json::from_str(ONNX_GRAPH)?;
+    let mut runtime = Runtime::default();
+    runtime
+        .registry_mut()
+        .register(Arc::new(OnnxCpuFlowUnit::load(&args[0])?))?;
+    let plan = runtime.compile(&graph)?;
+
+    for _ in 0..warmup {
+        runtime.run_plan(&plan, vec![Value::TensorF32(input.clone())])?;
+    }
+
+    // Input preparation is intentionally outside the measured interval.
+    let values: Vec<_> = (0..items)
+        .map(|_| Value::TensorF32(input.clone()))
+        .collect();
+
+    let start = Instant::now();
+    let result = runtime.run_plan(&plan, values)?;
+    let elapsed = start.elapsed();
+
+    let captured = result
+        .outputs
+        .get("result.out")
+        .ok_or_else(|| FlowError::Execution("missing result.out terminal".to_owned()))?;
+    if result.input_count != items || captured.len() != items {
+        return Err(FlowError::Execution(format!(
+            "batch output cardinality mismatch: inputs={}, outputs={}",
+            result.input_count,
+            captured.len()
+        )));
+    }
+
+    let mut aggregate_checksum = 0.0_f64;
+    let mut output_shape = Vec::new();
+    for value in captured {
+        match value {
+            Value::TensorF32(tensor) => {
+                output_shape = tensor.shape().to_vec();
+                aggregate_checksum += tensor
+                    .data()
+                    .iter()
+                    .map(|&value| f64::from(value))
+                    .sum::<f64>();
+            }
+            _ => {
+                return Err(FlowError::Execution(
+                    "batch benchmark expects only f32 tensor outputs".to_owned(),
+                ));
+            }
+        }
+    }
+
+    let elapsed_secs = elapsed.as_secs_f64();
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "benchmark": "onnx_cpu_finite_batch_throughput",
+            "execution_provider": "CPU",
+            "model_path": args[0],
+            "input_shape": input.shape(),
+            "output_shape": output_shape,
+            "batch_items": items,
+            "warmup_single_frame_calls": warmup,
+            "input_batch_bytes": input_batch_bytes,
+            "elapsed_ms": elapsed_secs * 1000.0,
+            "throughput_items_per_sec": if elapsed_secs > 0.0 {
+                items as f64 / elapsed_secs
+            } else {
+                0.0
+            },
+            "aggregate_output_sum": aggregate_checksum,
+            "timing_scope": "single_run_plan_over_preconstructed_finite_batch",
+            "includes_worker_thread_startup_and_teardown": true,
+            "includes_output_capture": true,
+            "excludes_input_batch_construction": true,
+            "excludes_onnx_session_load": true
+        }))?
+    );
+    Ok(())
 }

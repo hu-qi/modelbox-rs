@@ -81,3 +81,18 @@ cargo run --release -p modelbox-cli --features onnx -- \
 The last arguments are measured iterations (default 100, max 10,000) and warmup iterations (default 10, max 1,000). The command emits machine-readable JSON with p50/p95/mean/min latency in milliseconds, inferred tensor shape, output checksum, and approximate items/sec. ONNX session loading, model parsing and Graph IR compilation are excluded from the timed section. Each measured iteration **includes** input cloning, spawning graph worker threads, bounded channel transmission, Tensor marshaling, model inference, and capturing the output. The value is therefore **end-to-end per-graph-call latency**, not pure ONNX kernel latency. Timings from the synthetic three-element Relu model must not be extrapolated to real models; do not compare Debug and Release timings.
 
 CI now validates the opt-in ONNX model and CLI on the `macos-15` arm64 GitHub-hosted runner (in addition to Linux). This tests software portability, not GPU/NPU.
+
+### Actual finite-batch throughput (v0.2 experimental)
+
+Single-request `bench` reports an estimated rate from the reciprocal of mean latency. It is **not** sustained throughput.
+
+The new `bench-batch` instead measures one complete `run_plan` processing a prepared finite batch of N items. It reports measured wall-clock items/sec:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-batch examples/relu.onnx examples/relu-input.json 1000 10
+```
+
+Batch preparation, graph compilation and ONNX session loading are excluded from the timed interval. Thread startup/shutdown, bounded queues, CPU ONNX inference, and terminal output capture **are included**. The command accepts up to 10,000 items, with a 64 MiB input-batch safety limit. It is not a continuous streaming benchmark and retains all outputs in memory, so its throughput should not be equated with a long-running RTSP pipeline.
+
+The single-call baseline from an Apple Silicon Mac mini is recorded in [benchmarks/baselines/2026-10-11-macos-arm64-relu.json](benchmarks/baselines/2026-10-11-macos-arm64-relu.json). Hardware subtype, macOS version, and a true sustained throughput result remain unrecorded.

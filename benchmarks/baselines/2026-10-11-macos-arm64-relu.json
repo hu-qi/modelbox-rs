@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported local release benchmark output (not reproduced by CI; no model performance parity claim)",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "macos_version": null,
+    "apple_soc": null,
+    "compiler_version": null,
+    "git_commit": null,
+    "profile": "release"
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench examples/relu.onnx examples/relu-input.json 100 10",
+  "measurement": {
+    "benchmark": "onnx_cpu_graph_call",
+    "execution_provider": "CPU",
+    "excludes_onnx_session_load": true,
+    "includes_worker_thread_startup": true,
+    "input_shape": [
+      3
+    ],
+    "last_output_sum": 5,
+    "latency_ms": {
+      "mean": 0.02925786,
+      "min": 0.024125,
+      "p50": 0.026292,
+      "p95": 0.044
+    },
+    "measured_iterations": 100,
+    "model_path": "examples/relu.onnx",
+    "output_shape": [
+      3
+    ],
+    "throughput_items_per_sec": 34178.849717648525,
+    "throughput_is_estimated_from_mean_latency": true,
+    "warmup_iterations": 10
+  },
+  "interpretation": "Only sequential single graph-call latency on a trivial 3-float Relu model. Items/s is inverse mean latency, not measured sustained batch throughput."
+}
