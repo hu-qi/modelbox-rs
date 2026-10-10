@@ -1,0 +1,16 @@
+[package]
+name = "modelbox-cli"
+version = "0.1.0"
+description = "Command-line interface for ModelBox Rust"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "modelbox"
+path = "src/main.rs"
+
+[dependencies]
+modelbox-core = { path = "../modelbox-core" }
+serde_json = "1"
