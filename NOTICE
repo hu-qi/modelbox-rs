@@ -1,0 +1,9 @@
+modelbox-rs
+Copyright 2026 modelbox-rs contributors.
+
+This is an independent Rust implementation inspired by the architectural
+goals of the original ModelBox project (https://github.com/modelbox-ai/modelbox).
+It is not an official release or maintained by the original ModelBox team.
+
+Original ModelBox source and notices remain copyright their respective owners.
+No legacy source code or proprietary device SDK is included in this milestone.
