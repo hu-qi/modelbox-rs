@@ -4,6 +4,9 @@ use std::path::Path;
 
 use modelbox_core::{FlowError, GraphSpec, Runtime, Value};
 
+#[cfg(feature = "onnx")]
+mod bench;
+
 const DEMO: &str = include_str!("../../../examples/hello.json");
 #[cfg(feature = "onnx")]
 const ONNX_GRAPH: &str = include_str!("../../../examples/relu.json");
@@ -15,6 +18,7 @@ fn usage() -> &'static str {
   modelbox run <graph.json> <TEXT>
   modelbox run-batch <graph.json> <TEXT ...>
   modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
+  modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
 
 Text examples use core.input; ONNX inference is an opt-in feature.
 Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
@@ -55,6 +59,8 @@ fn execute() -> Result<(), FlowError> {
             let result = runtime.run_many(&graph, inputs)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
+        #[cfg(feature = "onnx")]
+        "bench" => bench::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "infer" => {
             use std::sync::Arc;

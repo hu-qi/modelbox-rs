@@ -54,3 +54,28 @@ jobs:
         run: cargo clippy -p modelbox-core --features onnx --all-targets -- -D warnings
       - name: Inference CLI
         run: cargo run -p modelbox-cli --features onnx -- infer examples/relu.onnx examples/relu-input.json
+      - name: Bench CLI smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench examples/relu.onnx examples/relu-input.json 5 1
+      - name: Bench unit tests
+        run: cargo test -p modelbox-cli --features onnx
+
+  onnx-macos-arm64:
+    name: ONNX CPU inference (macOS ARM64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify native Apple Silicon
+        shell: bash
+        run: |
+          uname -m
+          test "$(uname -m)" = "arm64"
+      - name: ONNX CPU model tests
+        run: cargo test -p modelbox-core --features onnx
+      - name: ONNX CLI integration
+        run: cargo run -p modelbox-cli --features onnx -- infer examples/relu.onnx examples/relu-input.json
+      - name: Benchmark smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench examples/relu.onnx examples/relu-input.json 5 1
