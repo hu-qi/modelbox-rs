@@ -27,7 +27,8 @@
 - [x] Three-path control: direct ONNX FlowUnit, ONNX Graph and Identity Graph.
 - [x] Runtime dispatch moves owned values into single-consumer channels and terminal captures; only additional fan-out readers cause clones.
 - [x] Optional FlowUnit `process_owned` path with backward-compatible borrowed default; built-in tensor.output and core.output forward their input buffers without cloning.
-- [ ] Independent classification/object-detection fixtures, accuracy and real-model benchmarks.
+- [x] Trained MNIST CNN f32 classification model and graph-vs-direct shape/numeric integration smoke tests (no accuracy claim).
+- [ ] Independently labeled classification accuracy fixture, object-detection fixtures and representative real-model performance baselines.
 
 
 - ONNX Runtime CPU backend and tensor value design.

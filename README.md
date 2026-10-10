@@ -122,3 +122,17 @@ The JSON includes raw paired observations, P50/P95/mean elapsed time, output che
 ### Three-way inference-cost control
 
 The `bench-compare` command now includes direct ONNX FlowUnit execution alongside the existing Identity and ONNX graph paths, with a round-robin execution order. No new command syntax is necessary. This helps investigate the cost of sending ONNX inference through a Graph, but neither the Identity duration nor the difference between direct and Graph is a pure measure of scheduler overhead.
+
+### Pre-trained MNIST CNN inference acceptance
+
+The repository includes an externally trained ONNX MNIST classification model (licensed MIT; source: Microsoft's ONNX Runtime examples) under `examples/mnist.onnx` and a reproducible synthetic 28×28 grayscale digit input. This is a **real trained convolutional network**, unlike the tiny Relu fixture.
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  infer examples/mnist.onnx examples/mnist-1-input.json
+
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare examples/mnist.onnx examples/mnist-1-input.json 32 5 5
+```
+
+The model consumes a `[1,1,28,28]` f32 image tensor and emits a `[1,10]` f32 logit tensor (softmax and image preprocessing are outside this CLI demo). CI checks output shape, finite numeric values, direct-FlowUnit/Graph consistency within tolerance, and invalid image-shape rejection. The user-created digit-like fixture is **not** a labeled MNIST test-set sample; passing these checks demonstrates integration, **not classification accuracy**. Real image preprocessing, curated labeled accuracy evaluation, and object detection remain future work. License and source attribution: `third_party/mnist/LICENSE`.

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "reported_date": "2026-10-11",
+  "source": "User-reported local Apple Silicon Mac mini nine-round CLI output, single invocation after process_owned forwarding, not a controlled repeated A/B trial",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "os": "macOS",
+    "architecture": "arm64",
+    "exact_soc": null,
+    "macos_version": null,
+    "git_commit": "66bb880610afada853c17a5ad4800e7833dc4b74",
+    "profile": "release"
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10",
+  "batch_items": 1000,
+  "paired_rounds": 9,
+  "warmup_single_frame_calls_per_graph": 10,
+  "identity": {
+    "elapsed_ms": {
+      "mean": 0.31567155555555554,
+      "min": 0.298209,
+      "p50": 0.3025,
+      "p95": 0.368209
+    },
+    "per_round_elapsed_ms": [
+      0.368209,
+      0.326917,
+      0.325292,
+      0.316833,
+      0.3025,
+      0.298209,
+      0.301,
+      0.302334,
+      0.29975
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 3305785.123966942
+  },
+  "onnx_cpu": {
+    "elapsed_ms": {
+      "mean": 1.542097111111111,
+      "min": 1.3715,
+      "p50": 1.525333,
+      "p95": 1.679084
+    },
+    "per_round_elapsed_ms": [
+      1.676125,
+      1.679084,
+      1.597291,
+      1.525333,
+      1.647333,
+      1.427958,
+      1.3715,
+      1.523792,
+      1.430458
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 655594.548862445
+  },
+  "onnx_direct_cpu": {
+    "elapsed_ms": {
+      "mean": 1.1688056666666669,
+      "min": 1.100083,
+      "p50": 1.159542,
+      "p95": 1.290625
+    },
+    "per_round_elapsed_ms": [
+      1.290625,
+      1.212584,
+      1.216292,
+      1.159542,
+      1.174125,
+      1.136708,
+      1.119417,
+      1.109875,
+      1.100083
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 862409.4685660372
+  },
+  "last_checksums": {
+    "identity": 4000,
+    "onnx_cpu": 5000,
+    "onnx_direct_cpu": 5000
+  },
+  "descriptive_comparison": {
+    "graph_to_direct_median_ratio": 1.3154616219162394,
+    "identity_median_as_percent_of_onnx_median": 19.831735103088963,
+    "onnx_graph_minus_direct_median_ms": 0.365791,
+    "onnx_minus_identity_median_ms": 1.222833
+  },
+  "limitations": [
+    "Synthetic 3-float Relu is not a vision benchmark.",
+    "Observed throughput is finite-batch, not streaming.",
+    "Across-commit comparisons are not interleaved controlled A/B experiments."
+  ]
+}

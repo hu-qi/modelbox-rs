@@ -7,3 +7,10 @@ It is not an official release or maintained by the original ModelBox team.
 
 Original ModelBox source and notices remain copyright their respective owners.
 No legacy source code or proprietary device SDK is included in this milestone.
+
+
+Third-party trained MNIST model fixture:
+- File: examples/mnist.onnx
+- Source: https://github.com/microsoft/onnxruntime-inference-examples/blob/main/c_cxx/MNIST/mnist.onnx
+- License: MIT, see third_party/mnist/LICENSE
+- Upstream git blob SHA: fc1a3f733c6e6243dd23dacb125b7a372de55a50

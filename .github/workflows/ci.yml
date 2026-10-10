@@ -60,6 +60,10 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 32 2
       - name: Tensor graph overhead smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
+      - name: MNIST CNN CLI inference
+        run: cargo run -p modelbox-cli --features onnx -- infer examples/mnist.onnx examples/mnist-1-input.json
+      - name: MNIST CNN three-path smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
       - name: Bench unit tests
@@ -89,5 +93,9 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 32 2
       - name: Tensor graph overhead smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
+      - name: MNIST CNN CLI inference
+        run: cargo run -p modelbox-cli --features onnx -- infer examples/mnist.onnx examples/mnist-1-input.json
+      - name: MNIST CNN three-path smoke test
+        run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
