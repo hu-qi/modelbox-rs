@@ -8,6 +8,8 @@ use modelbox_core::{FlowError, GraphSpec, Runtime, Value};
 mod bench;
 #[cfg(feature = "onnx")]
 mod bench_compare;
+#[cfg(feature = "onnx")]
+mod mnist_png;
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
 #[cfg(feature = "onnx")]
@@ -20,6 +22,7 @@ fn usage() -> &'static str {
   modelbox run <graph.json> <TEXT>
   modelbox run-batch <graph.json> <TEXT ...>
   modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
+  modelbox infer-mnist-png <model.onnx> <28x28-grayscale.png>   (requires --features onnx)
   modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
@@ -72,6 +75,8 @@ fn execute() -> Result<(), FlowError> {
         "bench-overhead" => bench::run_overhead(args.collect())?,
         #[cfg(feature = "onnx")]
         "bench-compare" => bench_compare::run(args.collect())?,
+        #[cfg(feature = "onnx")]
+        "infer-mnist-png" => mnist_png::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "infer" => {
             use std::sync::Arc;
