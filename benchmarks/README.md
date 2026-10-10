@@ -119,4 +119,6 @@ cargo run --release -p modelbox-cli --features onnx -- \
 
 The command returns sample count, exact per-image labels, confusion matrix, mistakes and observed accuracy. It validates every row, all 784 uint8 pixels, and every `float32[1,10]` prediction. It supports optional `min_correct` for a count-based CI threshold, and processes at most 10,000 examples in 64-image chunks.
 
+**Observed CI functional result:** both Linux and macOS ARM64 classify all 10 fixture rows correctly (10/10) in a single documented check. The CI acceptance gate now enforces `min_correct=10` for this fixed regression fixture. The raw labels and predictions are archived at [baselines/2026-10-11-labeled-mnist-test-10-ci.json](baselines/2026-10-11-labeled-mnist-test-10-ci.json).
+
 **Interpretation:** the labels come from an external MNIST test sample set rather than our synthetic image. However, n=10 is only a smoke/diagnostic fixture and is not enough to claim a meaningful population accuracy estimate. Independent numerical reference comparisons, full 10,000-example evaluation, and object-detection acceptance are still pending.
