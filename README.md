@@ -107,3 +107,14 @@ cargo run --release -p modelbox-cli --features onnx -- \
 `bench-overhead` runs an identically shaped three-node tensor graph, replacing `onnx.cpu` with a no-op tensor identity operator. Its throughput provides a first control group for bounded-channel and worker/capture overhead. It is **not** a direct measurement of ONNX kernel time. Run `bench-batch` on the same machine with the same item count, in alternating orders, and repeat measurements before prioritizing runtime optimizations.
 
 The user-reported 1,000-item ONNX Relu throughput result is stored in [benchmarks/baselines/2026-10-11-macos-arm64-relu-batch.json](benchmarks/baselines/2026-10-11-macos-arm64-relu-batch.json).
+
+### Repeated paired ONNX-vs-Identity graph comparison
+
+Run multiple alternating rounds from a single Release process to reduce run-to-run variability:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10
+```
+
+The JSON includes raw paired observations, P50/P95/mean elapsed time, output checksums, and the percentage of the ONNX median represented by the Identity median. This is a descriptive control comparison, **not** an exact decomposition of ONNX execution costs.

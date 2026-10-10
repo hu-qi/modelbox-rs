@@ -161,7 +161,7 @@ const MAX_BATCH_BYTES: usize = 64 * 1024 * 1024;
 const TENSOR_IN: [PortDef; 1] = [PortDef::new("in", DataType::TensorF32)];
 const TENSOR_OUT: [PortDef; 1] = [PortDef::new("out", DataType::TensorF32)];
 
-const IDENTITY_GRAPH: &str = r#"{
+pub(crate) const IDENTITY_GRAPH: &str = r#"{
   "name": "tensor_identity_benchmark",
   "queue_capacity": 2,
   "nodes": [
@@ -177,7 +177,7 @@ const IDENTITY_GRAPH: &str = r#"{
 
 /// A test-only FlowUnit preserving the 3-node inference graph topology.
 /// Measures graph/worker/channel/tensor cloning without ONNX Runtime calls.
-struct TensorIdentity;
+pub(crate) struct TensorIdentity;
 
 impl FlowUnit for TensorIdentity {
     fn name(&self) -> &'static str {
@@ -206,7 +206,7 @@ impl FlowUnit for TensorIdentity {
     }
 }
 
-fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError> {
+pub(crate) fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError> {
     let bytes = input
         .data()
         .len()

@@ -6,6 +6,8 @@ use modelbox_core::{FlowError, GraphSpec, Runtime, Value};
 
 #[cfg(feature = "onnx")]
 mod bench;
+#[cfg(feature = "onnx")]
+mod bench_compare;
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
 #[cfg(feature = "onnx")]
@@ -21,6 +23,7 @@ fn usage() -> &'static str {
   modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
+  modelbox bench-compare <model.onnx> <tensor.json> [items] [rounds] [warmup]   (requires --features onnx)
 
 Text examples use core.input; ONNX inference is an opt-in feature.
 Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
@@ -67,6 +70,8 @@ fn execute() -> Result<(), FlowError> {
         "bench-batch" => bench::run_batch(args.collect())?,
         #[cfg(feature = "onnx")]
         "bench-overhead" => bench::run_overhead(args.collect())?,
+        #[cfg(feature = "onnx")]
+        "bench-compare" => bench_compare::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "infer" => {
             use std::sync::Arc;
