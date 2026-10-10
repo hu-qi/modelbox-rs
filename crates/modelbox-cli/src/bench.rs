@@ -5,7 +5,9 @@ use std::fs;
 use std::sync::Arc;
 use std::time::Instant;
 
-use modelbox_core::{DataType, FlowError, FlowUnit, GraphSpec, OnnxCpuFlowUnit, PortDef, Runtime, TensorF32, Value};
+use modelbox_core::{
+    DataType, FlowError, FlowUnit, GraphSpec, OnnxCpuFlowUnit, PortDef, Runtime, TensorF32, Value,
+};
 use serde_json::json;
 
 use crate::{usage, ONNX_GRAPH};
@@ -204,7 +206,6 @@ impl FlowUnit for TensorIdentity {
     }
 }
 
-
 fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError> {
     let bytes = input
         .data()
@@ -259,8 +260,11 @@ fn run_batch_impl(args: Vec<String>, without_onnx: bool) -> Result<(), FlowError
 
     let input: TensorF32 = serde_json::from_str(&fs::read_to_string(&args[1])?)?;
     let input_batch_bytes = batch_input_bytes(&input, items)?;
-    let graph: GraphSpec =
-        serde_json::from_str(if without_onnx { IDENTITY_GRAPH } else { ONNX_GRAPH })?;
+    let graph: GraphSpec = serde_json::from_str(if without_onnx {
+        IDENTITY_GRAPH
+    } else {
+        ONNX_GRAPH
+    })?;
     let mut runtime = Runtime::default();
     if without_onnx {
         runtime.registry_mut().register(Arc::new(TensorIdentity))?;
