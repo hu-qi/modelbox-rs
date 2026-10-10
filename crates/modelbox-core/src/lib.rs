@@ -9,6 +9,11 @@ mod graph;
 mod runtime;
 mod value;
 
+#[cfg(feature = "onnx")]
+mod onnx_cpu;
+#[cfg(feature = "onnx")]
+pub use onnx_cpu::OnnxCpuFlowUnit;
+
 pub use error::FlowError;
 pub use flow_unit::{FlowRegistry, FlowUnit, PortDef};
 pub use graph::{EdgeSpec, ExecutionPlan, GraphSpec, NodeSpec};
