@@ -70,15 +70,24 @@ impl TensorF32 {
     /// Shape [] denotes one scalar element.
     pub fn new(shape: Vec<usize>, data: Vec<f32>) -> crate::Result<Self> {
         if shape.len() > 8 || shape.contains(&0) {
-            return Err(crate::FlowError::Execution("invalid tensor rank or dimension".to_owned()));
+            return Err(crate::FlowError::Execution(
+                "invalid tensor rank or dimension".to_owned(),
+            ));
         }
-        let count = shape.iter().try_fold(1usize, |a, &b| a.checked_mul(b))
+        let count = shape
+            .iter()
+            .try_fold(1usize, |a, &b| a.checked_mul(b))
             .ok_or_else(|| crate::FlowError::Execution("tensor size overflow".to_owned()))?;
         if count > 8_388_608 || count != data.len() {
-            return Err(crate::FlowError::Execution(format!("tensor requires {count} values; got {}", data.len())));
+            return Err(crate::FlowError::Execution(format!(
+                "tensor requires {count} values; got {}",
+                data.len()
+            )));
         }
         if data.iter().any(|v| !v.is_finite()) {
-            return Err(crate::FlowError::Execution("tensor has non-finite values".to_owned()));
+            return Err(crate::FlowError::Execution(
+                "tensor has non-finite values".to_owned(),
+            ));
         }
         Ok(Self { shape, data })
     }
