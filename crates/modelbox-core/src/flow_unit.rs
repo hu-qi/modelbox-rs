@@ -44,6 +44,8 @@ impl Default for FlowRegistry {
         for name in [
             "core.input",
             "core.output",
+            "tensor.input",
+            "tensor.output",
             "text.uppercase",
             "text.prefix",
             "text.concat",
@@ -85,6 +87,8 @@ impl FlowRegistry {
 const NONE: [PortDef; 0] = [];
 const INPUT_TEXT: [PortDef; 1] = [PortDef::new("in", DataType::Text)];
 const OUTPUT_TEXT: [PortDef; 1] = [PortDef::new("out", DataType::Text)];
+const INPUT_TENSOR: [PortDef; 1] = [PortDef::new("in", DataType::TensorF32)];
+const OUTPUT_TENSOR: [PortDef; 1] = [PortDef::new("out", DataType::TensorF32)];
 const CONCAT_TEXT: [PortDef; 2] = [
     PortDef::new("left", DataType::Text),
     PortDef::new("right", DataType::Text),
@@ -101,18 +105,22 @@ impl FlowUnit for Builtin {
 
     fn inputs(&self) -> &'static [PortDef] {
         match self.name {
-            "core.input" => &NONE,
+            "core.input" | "tensor.input" => &NONE,
+            "tensor.output" => &INPUT_TENSOR,
             "text.concat" => &CONCAT_TEXT,
             _ => &INPUT_TEXT,
         }
     }
 
     fn outputs(&self) -> &'static [PortDef] {
-        &OUTPUT_TEXT
+        match self.name {
+            "tensor.input" | "tensor.output" => &OUTPUT_TENSOR,
+            _ => &OUTPUT_TEXT,
+        }
     }
 
     fn is_source(&self) -> bool {
-        self.name == "core.input"
+        self.name == "core.input" || self.name == "tensor.input"
     }
 
     fn validate_config(&self, config: &JsonValue) -> Result<()> {
@@ -136,10 +144,16 @@ impl FlowUnit for Builtin {
             }
         };
         let value = match self.name {
-            "core.input" => {
+            "core.input" | "tensor.input" => {
                 return Err(FlowError::Execution(
                     "core.input must be driven by Runtime".to_owned(),
                 ));
+            }
+            "tensor.output" => {
+                return match inputs.first() {
+                    Some(Value::TensorF32(tensor)) => Ok(vec![Value::TensorF32(tensor.clone())]),
+                    _ => Err(FlowError::Execution("tensor.output expects tensor_f32".to_owned())),
+                };
             }
             "core.output" => read_text(0)?.to_owned(),
             "text.uppercase" => read_text(0)?.to_uppercase(),
