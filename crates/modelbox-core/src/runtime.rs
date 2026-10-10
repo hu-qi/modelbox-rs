@@ -17,16 +17,9 @@ pub struct RunResult {
     pub input_count: usize,
 }
 
+#[derive(Default)]
 pub struct Runtime {
     registry: FlowRegistry,
-}
-
-impl Default for Runtime {
-    fn default() -> Self {
-        Self {
-            registry: FlowRegistry::default(),
-        }
-    }
 }
 
 #[derive(Clone)]
