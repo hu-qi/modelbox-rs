@@ -77,11 +77,7 @@ fn measure(
     Ok((elapsed_ns, checksum))
 }
 
-
-fn measure_direct(
-    unit: &dyn FlowUnit,
-    prepared: &[Value],
-) -> Result<(u128, f64), FlowError> {
+fn measure_direct(unit: &dyn FlowUnit, prepared: &[Value]) -> Result<(u128, f64), FlowError> {
     // Unlike run_plan, this directly invokes one ONNX FlowUnit from the
     // current thread. All inputs are preconstructed. Output buffering is timed.
     let mut captured = Vec::with_capacity(prepared.len());
