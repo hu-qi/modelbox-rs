@@ -9,9 +9,9 @@ mod bench;
 #[cfg(feature = "onnx")]
 mod bench_compare;
 #[cfg(feature = "onnx")]
-mod mnist_png;
-#[cfg(feature = "onnx")]
 mod mnist_eval;
+#[cfg(feature = "onnx")]
+mod mnist_png;
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
 #[cfg(feature = "onnx")]

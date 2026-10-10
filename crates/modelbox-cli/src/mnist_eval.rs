@@ -163,18 +163,26 @@ mod tests {
 
     #[test]
     fn external_fixture_has_valid_labels_and_shapes() {
-        let records =
-            parse_csv(include_str!("../../../benchmarks/fixtures/mnist-test-10.csv")).unwrap();
+        let records = parse_csv(include_str!(
+            "../../../benchmarks/fixtures/mnist-test-10.csv"
+        ))
+        .unwrap();
         assert_eq!(records.len(), 10);
         assert_eq!(
-            records.iter().map(|sample| sample.label).collect::<Vec<_>>(),
+            records
+                .iter()
+                .map(|sample| sample.label)
+                .collect::<Vec<_>>(),
             [7, 2, 1, 0, 4, 1, 4, 9, 5, 9]
         );
         for record in records {
             match record.image {
                 modelbox_core::Value::TensorF32(tensor) => {
                     assert_eq!(tensor.shape(), [1, 1, 28, 28]);
-                    assert!(tensor.data().iter().all(|value| (0.0..=1.0).contains(value)));
+                    assert!(tensor
+                        .data()
+                        .iter()
+                        .all(|value| (0.0..=1.0).contains(value)));
                 }
                 _ => panic!("expected a f32 image tensor"),
             }
