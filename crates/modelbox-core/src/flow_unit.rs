@@ -152,7 +152,9 @@ impl FlowUnit for Builtin {
             "tensor.output" => {
                 return match inputs.first() {
                     Some(Value::TensorF32(tensor)) => Ok(vec![Value::TensorF32(tensor.clone())]),
-                    _ => Err(FlowError::Execution("tensor.output expects tensor_f32".to_owned())),
+                    _ => Err(FlowError::Execution(
+                        "tensor.output expects tensor_f32".to_owned(),
+                    )),
                 };
             }
             "core.output" => read_text(0)?.to_owned(),
