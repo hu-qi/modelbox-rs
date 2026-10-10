@@ -118,3 +118,7 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 The JSON includes raw paired observations, P50/P95/mean elapsed time, output checksums, and the percentage of the ONNX median represented by the Identity median. This is a descriptive control comparison, **not** an exact decomposition of ONNX execution costs.
+
+### Three-way inference-cost control
+
+The `bench-compare` command now includes direct ONNX FlowUnit execution alongside the existing Identity and ONNX graph paths, with a round-robin execution order. No new command syntax is necessary. This helps investigate the cost of sending ONNX inference through a Graph, but neither the Identity duration nor the difference between direct and Graph is a pure measure of scheduler overhead.

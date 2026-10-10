@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported local Release run: 9 paired rounds, not independently measured by GitHub Actions",
+  "device": {
+    "name": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "exact_soc": null,
+    "macos_version": null,
+    "rustc_version": null,
+    "git_commit": null
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10",
+  "results": {
+    "batch_items": 1000,
+    "paired_rounds": 9,
+    "warmup_single_frame_calls_per_graph": 10,
+    "input_batch_bytes": 12000,
+    "input_shape": [
+      3
+    ],
+    "benchmark": "paired_onnx_vs_identity_finite_batch",
+    "execution_order": "identity_then_onnx_even_rounds; onnx_then_identity_odd_rounds",
+    "identity": {
+      "elapsed_ms": {
+        "mean": 0.5288378888888888,
+        "min": 0.460916,
+        "p50": 0.528292,
+        "p95": 0.64875
+      },
+      "per_round_elapsed_ms": [
+        0.64875,
+        0.554291,
+        0.528292,
+        0.489209,
+        0.500583,
+        0.463,
+        0.571875,
+        0.542625,
+        0.460916
+      ],
+      "throughput_items_per_sec_from_median_batch_duration": 1892892.566989468
+    },
+    "onnx_cpu": {
+      "elapsed_ms": {
+        "mean": 2.1689583333333333,
+        "min": 1.88825,
+        "p50": 2.016166,
+        "p95": 2.826334
+      },
+      "per_round_elapsed_ms": [
+        1.998375,
+        2.185875,
+        2.826334,
+        2.158083,
+        2.014834,
+        1.926667,
+        2.506041,
+        2.016166,
+        1.88825
+      ],
+      "throughput_items_per_sec_from_median_batch_duration": 495990.90551075654
+    },
+    "last_checksums": {
+      "identity": 4000,
+      "onnx_cpu": 5000
+    },
+    "descriptive_comparison": {
+      "identity_median_as_percent_of_onnx_median": 26.20280274540886,
+      "onnx_minus_identity_median_ms": 1.4878740000000001,
+      "warning": "Identity median is NOT pure scheduler overhead; difference is NOT pure ONNX kernel time"
+    }
+  },
+  "interpretation": [
+    "9 paired rounds reduce but do not eliminate time/order/thermal bias.",
+    "3-element synthetic Relu is not representative of real vision or long-running stream processing.",
+    "26.2% is a ratio of medians, not an attribution of runtime scheduler cycles.",
+    "Direct ONNX control was not collected in this historical measurement and is introduced by the accompanying code."
+  ]
+}
