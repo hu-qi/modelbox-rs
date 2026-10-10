@@ -60,9 +60,7 @@ fn endpoint(endpoint: &str) -> Result<(&str, &str)> {
     endpoint
         .rsplit_once('.')
         .filter(|(node, port)| !node.is_empty() && !port.is_empty())
-        .ok_or_else(|| FlowError::InvalidGraph(format!(
-            "endpoint must be node.port: {endpoint}"
-        )))
+        .ok_or_else(|| FlowError::InvalidGraph(format!("endpoint must be node.port: {endpoint}")))
 }
 
 impl ExecutionPlan {
@@ -86,7 +84,10 @@ impl ExecutionPlan {
 
         for (index, node) in spec.nodes.iter().enumerate() {
             if node.id.is_empty()
-                || !node.id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+                || !node
+                    .id
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
                 || ids.insert(node.id.clone(), index).is_some()
             {
                 return Err(FlowError::InvalidGraph(format!(
@@ -152,19 +153,17 @@ impl ExecutionPlan {
                 .outputs()
                 .iter()
                 .position(|port| port.name == from_port_name)
-                .ok_or_else(|| FlowError::InvalidGraph(format!(
-                    "unknown output port: {}",
-                    edge.from
-                )))?;
+                .ok_or_else(|| {
+                    FlowError::InvalidGraph(format!("unknown output port: {}", edge.from))
+                })?;
             let to_port = nodes[to_node]
                 .unit
                 .inputs()
                 .iter()
                 .position(|port| port.name == to_port_name)
-                .ok_or_else(|| FlowError::InvalidGraph(format!(
-                    "unknown input port: {}",
-                    edge.to
-                )))?;
+                .ok_or_else(|| {
+                    FlowError::InvalidGraph(format!("unknown input port: {}", edge.to))
+                })?;
             if !wired_inputs.insert((to_node, to_port)) {
                 return Err(FlowError::InvalidGraph(format!(
                     "input port has multiple upstream writers: {}",
@@ -255,11 +254,13 @@ impl ExecutionPlan {
     pub fn terminal_names(&self) -> Vec<String> {
         self.terminal_ports
             .iter()
-            .map(|&(node, port)| format!(
-                "{}.{}",
-                self.nodes[node].id,
-                self.nodes[node].unit.outputs()[port].name
-            ))
+            .map(|&(node, port)| {
+                format!(
+                    "{}.{}",
+                    self.nodes[node].id,
+                    self.nodes[node].unit.outputs()[port].name
+                )
+            })
             .collect()
     }
 }

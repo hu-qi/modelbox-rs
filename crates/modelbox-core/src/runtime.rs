@@ -169,9 +169,7 @@ impl Worker {
             let mut values = vec![first.value];
             for receiver in self.inputs.iter().skip(1) {
                 match receive(receiver, &self.cancelled) {
-                    Some(frame) if frame.sequence == first.sequence => {
-                        values.push(frame.value)
-                    }
+                    Some(frame) if frame.sequence == first.sequence => values.push(frame.value),
                     Some(frame) => {
                         return Err(FlowError::Execution(format!(
                             "node {} got out-of-sync frames: {} vs {}",

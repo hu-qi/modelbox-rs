@@ -116,8 +116,7 @@ impl FlowUnit for Builtin {
     }
 
     fn validate_config(&self, config: &JsonValue) -> Result<()> {
-        if self.name == "text.prefix"
-            && config.get("prefix").and_then(JsonValue::as_str).is_none()
+        if self.name == "text.prefix" && config.get("prefix").and_then(JsonValue::as_str).is_none()
         {
             return Err(FlowError::InvalidGraph(
                 "text.prefix requires a string config.prefix".to_owned(),
@@ -148,9 +147,7 @@ impl FlowUnit for Builtin {
                 let prefix = config
                     .get("prefix")
                     .and_then(JsonValue::as_str)
-                    .ok_or_else(|| {
-                        FlowError::Execution("missing config.prefix".to_owned())
-                    })?;
+                    .ok_or_else(|| FlowError::Execution("missing config.prefix".to_owned()))?;
                 format!("{prefix}{}", read_text(0)?)
             }
             "text.concat" => format!("{}{}", read_text(0)?, read_text(1)?),

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use modelbox_core::{
-    DataType, EdgeSpec, FlowError, FlowRegistry, FlowUnit, GraphSpec, NodeSpec, PortDef,
-    Runtime, Value,
+    DataType, EdgeSpec, FlowError, FlowRegistry, FlowUnit, GraphSpec, NodeSpec, PortDef, Runtime,
+    Value,
 };
 
 const HELLO: &str = include_str!("../../../examples/hello.json");
@@ -13,7 +13,11 @@ fn graph(json: &str) -> GraphSpec {
 }
 
 fn values(result: &modelbox_core::RunResult, key: &str) -> Vec<Value> {
-    result.outputs.get(key).expect("terminal must exist").clone()
+    result
+        .outputs
+        .get(key)
+        .expect("terminal must exist")
+        .clone()
 }
 
 #[test]
