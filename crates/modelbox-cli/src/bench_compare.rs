@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use modelbox_core::{
-    ExecutionPlan, FlowError, GraphSpec, OnnxCpuFlowUnit, Runtime, TensorF32, Value,
+    ExecutionPlan, FlowError, FlowUnit, GraphSpec, OnnxCpuFlowUnit, Runtime, TensorF32, Value,
 };
 use serde_json::{json, Value as JsonValue};
 
@@ -77,6 +77,40 @@ fn measure(
     Ok((elapsed_ns, checksum))
 }
 
+
+fn measure_direct(
+    unit: &dyn FlowUnit,
+    prepared: &[Value],
+) -> Result<(u128, f64), FlowError> {
+    // Unlike run_plan, this directly invokes one ONNX FlowUnit from the
+    // current thread. All inputs are preconstructed. Output buffering is timed.
+    let mut captured = Vec::with_capacity(prepared.len());
+    let start = Instant::now();
+    for input in prepared {
+        let values = unit.process(std::slice::from_ref(input), &JsonValue::Null)?;
+        if !matches!(values.as_slice(), [Value::TensorF32(_)]) {
+            return Err(FlowError::Execution(
+                "direct ONNX must emit exactly one f32 tensor".to_owned(),
+            ));
+        }
+        captured.extend(values);
+    }
+    let elapsed_ns = start.elapsed().as_nanos();
+
+    let checksum = captured
+        .iter()
+        .map(|value| match value {
+            Value::TensorF32(tensor) => tensor
+                .data()
+                .iter()
+                .map(|&number| f64::from(number))
+                .sum::<f64>(),
+            _ => 0.0,
+        })
+        .sum();
+    Ok((elapsed_ns, checksum))
+}
+
 fn summary(observations: &[u128], items: usize) -> JsonValue {
     let mut ordered = observations.to_vec();
     ordered.sort_unstable();
@@ -125,46 +159,61 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
         .register(Arc::new(TensorIdentity))?;
     let identity_plan = identity_runtime.compile(&identity_graph)?;
 
+    let onnx_unit = Arc::new(OnnxCpuFlowUnit::load(&args[0])?);
     let mut onnx_runtime = Runtime::default();
-    onnx_runtime
-        .registry_mut()
-        .register(Arc::new(OnnxCpuFlowUnit::load(&args[0])?))?;
+    onnx_runtime.registry_mut().register(onnx_unit.clone())?;
     let onnx_plan = onnx_runtime.compile(&onnx_graph)?;
 
     for _ in 0..warmup {
         let sample = vec![Value::TensorF32(input.clone())];
         identity_runtime.run_plan(&identity_plan, sample.clone())?;
-        onnx_runtime.run_plan(&onnx_plan, sample)?;
+        onnx_runtime.run_plan(&onnx_plan, sample.clone())?;
+        onnx_unit.process(&sample, &JsonValue::Null)?;
     }
     let batch: Vec<Value> = (0..items)
         .map(|_| Value::TensorF32(input.clone()))
         .collect();
     let mut identity_ns = Vec::with_capacity(rounds);
     let mut onnx_ns = Vec::with_capacity(rounds);
+    let mut direct_ns = Vec::with_capacity(rounds);
     let mut identity_checksum = 0.0_f64;
     let mut onnx_checksum = 0.0_f64;
+    let mut direct_checksum = 0.0_f64;
 
-    // Alternating order mitigates first-in-pair bias and progressive thermal drift.
+    // Rotate execution order to distribute cold-cache and thermal bias.
     for index in 0..rounds {
-        if index % 2 == 0 {
-            let (ns, checksum) = measure(&identity_runtime, &identity_plan, &batch)?;
-            identity_ns.push(ns);
-            identity_checksum = checksum;
-            let (ns, checksum) = measure(&onnx_runtime, &onnx_plan, &batch)?;
-            onnx_ns.push(ns);
-            onnx_checksum = checksum;
-        } else {
-            let (ns, checksum) = measure(&onnx_runtime, &onnx_plan, &batch)?;
-            onnx_ns.push(ns);
-            onnx_checksum = checksum;
-            let (ns, checksum) = measure(&identity_runtime, &identity_plan, &batch)?;
-            identity_ns.push(ns);
-            identity_checksum = checksum;
+        for offset in 0..3 {
+            match (index + offset) % 3 {
+                0 => {
+                    let (ns, checksum) = measure(&identity_runtime, &identity_plan, &batch)?;
+                    identity_ns.push(ns);
+                    identity_checksum = checksum;
+                }
+                1 => {
+                    let (ns, checksum) = measure(&onnx_runtime, &onnx_plan, &batch)?;
+                    onnx_ns.push(ns);
+                    onnx_checksum = checksum;
+                }
+                _ => {
+                    let (ns, checksum) = measure_direct(onnx_unit.as_ref(), &batch)?;
+                    direct_ns.push(ns);
+                    direct_checksum = checksum;
+                }
+            }
         }
+    }
+    if (direct_checksum - onnx_checksum).abs() > 0.000001 {
+        return Err(FlowError::Execution(
+            "direct and graph ONNX checksums disagree".to_owned(),
+        ));
     }
 
     let identity_stats = summary(&identity_ns, items);
     let onnx_stats = summary(&onnx_ns, items);
+    let direct_stats = summary(&direct_ns, items);
+    let direct_median = direct_stats["elapsed_ms"]["p50"]
+        .as_f64()
+        .ok_or_else(|| FlowError::Execution("missing direct ONNX median".to_owned()))?;
     let identity_median = identity_stats["elapsed_ms"]["p50"]
         .as_f64()
         .ok_or_else(|| FlowError::Execution("missing identity median".to_owned()))?;
@@ -181,12 +230,14 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
             "warmup_single_frame_calls_per_graph": warmup,
             "input_batch_bytes": input_batch_bytes,
             "input_shape": input.shape(),
-            "execution_order": "identity_then_onnx_even_rounds; onnx_then_identity_odd_rounds",
+            "execution_order": "three_mode_round_robin: identity, onnx_graph, direct_onnx",
             "identity": identity_stats,
             "onnx_cpu": onnx_stats,
+            "onnx_direct_cpu": direct_stats,
             "last_checksums": {
                 "identity": identity_checksum,
-                "onnx_cpu": onnx_checksum
+                "onnx_cpu": onnx_checksum,
+                "onnx_direct_cpu": direct_checksum
             },
             "descriptive_comparison": {
                 "identity_median_as_percent_of_onnx_median": if onnx_median > 0.0 {
@@ -195,9 +246,15 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
                     0.0
                 },
                 "onnx_minus_identity_median_ms": onnx_median - identity_median,
-                "warning": "Identity median is NOT pure scheduler overhead; difference is NOT pure ONNX kernel time"
+                "onnx_graph_minus_direct_median_ms": onnx_median - direct_median,
+                "graph_to_direct_median_ratio": if direct_median > 0.0 {
+                    onnx_median / direct_median
+                } else {
+                    0.0
+                },
+                "warning": "Direct ONNX includes FlowUnit marshaling and output buffering; graph minus direct is NOT pure scheduler overhead. Identity is not an isolation of scheduler costs."
             },
-            "measurement_scope": "one preconstructed finite batch per timed run_plan; session loading and preparation excluded; thread startup, transport, inference and capture included"
+            "measurement_scope": "per round: Identity graph, ONNX graph, and direct ONNX FlowUnit over preconstructed inputs; sessions and graph plans shared; graph calls include workers/queues/capture while direct calls omit graph scheduling"
         }))?
     );
     Ok(())

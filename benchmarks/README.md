@@ -48,3 +48,20 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 The arguments are items per batch, number of paired rounds (3–31) and warmup single-frame calls per graph (0–1000). The command outputs per-round timings and P50/P95/mean durations for each graph. A ratio of Identity median to ONNX median is displayed as a descriptive comparison only, **not** a causal attribution of scheduler time or a direct ONNX kernel benchmark. Input batch cloning, checksums, model loading and graph compilation are outside timed sections, while worker/thread setup, bounded channels, inference and capture are included. Both modes preserve identical graph topology but use different middle operators. Results on synthetic 3-float Relu should not guide production performance conclusions.
+
+## Three-path paired profiling (v0.2)
+
+`bench-compare` now records **three** repeated paths from the same process, rotating their order across rounds:
+
+1. Tensor Identity graph: three nodes, no ONNX inference.
+2. ONNX Graph: three nodes with ONNX CPU inference.
+3. Direct ONNX FlowUnit: invokes the **same already loaded ONNX FlowUnit** directly in the caller thread, without graph workers, channels or tensor.output.
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10
+```
+
+The direct path still incurs ONNX Runtime marshaling, mutex acquisition, native inference and output construction, and retains output buffers for the batch. Input vectors, model session loading, graph compilation and checksum calculations are outside timing. Direct and Graph ONNX output checksums must match. Differences between graph/direct wall-clock medians are descriptive and **must not** be labeled pure scheduler overhead, because there are differences in cloning, FlowUnit/output validation and capture semantics. Use the same macOS Release build and several invocations before deciding whether to optimize thread scheduling versus tensor copies versus ONNX invocation. No claim is made that the graph path supports steady-state streaming throughput.
+
+Recorded 9-round Apple Silicon data: [2026-10-11-macos-arm64-nine-rounds.json](baselines/2026-10-11-macos-arm64-nine-rounds.json). Hardware subtype was not reported.

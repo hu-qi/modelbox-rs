@@ -24,6 +24,7 @@
 - [x] Explicit finite-batch measured throughput benchmark and captured macOS arm64 baseline.
 - [x] Tensor identity graph overhead control (same graph topology, no ONNX model).
 - [x] Repeated alternating paired ONNX/Identity batch timings to measure run-to-run variability.
+- [x] Three-path control: direct ONNX FlowUnit, ONNX Graph and Identity Graph.
 - [ ] Independent classification/object-detection fixtures, accuracy and real-model benchmarks.
 
 
