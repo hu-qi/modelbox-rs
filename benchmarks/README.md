@@ -65,3 +65,11 @@ cargo run --release -p modelbox-cli --features onnx -- \
 The direct path still incurs ONNX Runtime marshaling, mutex acquisition, native inference and output construction, and retains output buffers for the batch. Input vectors, model session loading, graph compilation and checksum calculations are outside timing. Direct and Graph ONNX output checksums must match. Differences between graph/direct wall-clock medians are descriptive and **must not** be labeled pure scheduler overhead, because there are differences in cloning, FlowUnit/output validation and capture semantics. Use the same macOS Release build and several invocations before deciding whether to optimize thread scheduling versus tensor copies versus ONNX invocation. No claim is made that the graph path supports steady-state streaming throughput.
 
 Recorded 9-round Apple Silicon data: [2026-10-11-macos-arm64-nine-rounds.json](baselines/2026-10-11-macos-arm64-nine-rounds.json). Hardware subtype was not reported.
+
+## Runtime owned-frame dispatch experiment
+
+An experimental Runtime dispatch optimization moves the output `Value` into a single downstream channel or terminal capture instead of cloning it. For fan-out, it clones one value for each additional reader and moves the final value to the last reader. Backpressure and cancellation retry semantics are unchanged; a new 256-frame tensor fan-out test exercises capacity-one queues and validates both terminal sequences.
+
+This avoids redundant `Vec<f32>` allocations in the Graph transport path but **does not remove** the `TensorF32` cloning done inside the built-in `tensor.output` FlowUnit, nor the ONNX Runtime adapter's output allocation. It is not zero-copy or an alternative CPU execution provider.
+
+The before-change Apple Silicon three-mode baseline is captured in [baselines/2026-10-11-macos-arm64-three-path.json](baselines/2026-10-11-macos-arm64-three-path.json). To establish a credible effect, run `bench-compare` before and after on the *same machine* (repeated invocations, Release mode, consistent power state and identical input), preferably with interleaved A/B commits. No performance improvement is claimed before this is measured.

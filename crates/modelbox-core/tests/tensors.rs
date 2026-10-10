@@ -62,3 +62,33 @@ fn port_mismatch_rejected() {
         .to_string()
         .contains("type mismatch"));
 }
+
+#[test]
+fn tensor_fanout_with_backpressure_keeps_each_sequence() {
+    let graph: GraphSpec = serde_json::from_str(
+        r#"{
+          "name": "tensor_fanout_backpressure",
+          "queue_capacity": 1,
+          "nodes": [
+            {"id": "source", "unit": "tensor.input"},
+            {"id": "left", "unit": "tensor.output"},
+            {"id": "right", "unit": "tensor.output"}
+          ],
+          "edges": [
+            {"from": "source.out", "to": "left.in"},
+            {"from": "source.out", "to": "right.in"}
+          ]
+        }"#,
+    )
+    .unwrap();
+
+    let values: Vec<Value> = (0..256)
+        .map(|index| {
+            Value::TensorF32(TensorF32::new(vec![3], vec![index as f32, -1.0, 3.0]).unwrap())
+        })
+        .collect();
+    let result = Runtime::default().run_many(&graph, values.clone()).unwrap();
+    assert_eq!(result.input_count, 256);
+    assert_eq!(result.outputs["left.out"], values);
+    assert_eq!(result.outputs["right.out"], values);
+}

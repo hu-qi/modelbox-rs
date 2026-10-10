@@ -52,6 +52,34 @@ fn receive(receiver: &Receiver<Frame>, cancelled: &AtomicBool) -> Option<Frame> 
     }
 }
 
+/// Bounded transport keeps ownership of a timed-out frame for retries.
+/// Cancellation and unexpected downstream disconnect retain their old semantics.
+fn send_frame(
+    node_id: &str,
+    port_name: &str,
+    sender: &Sender<Frame>,
+    mut pending: Frame,
+    cancelled: &AtomicBool,
+) -> Result<()> {
+    loop {
+        if cancelled.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        match sender.send_timeout(pending, Duration::from_millis(20)) {
+            Ok(()) => return Ok(()),
+            Err(SendTimeoutError::Timeout(frame)) => pending = frame,
+            Err(SendTimeoutError::Disconnected(_)) => {
+                if cancelled.load(Ordering::Acquire) {
+                    return Ok(());
+                }
+                return Err(FlowError::Execution(format!(
+                    "downstream of {node_id}.{port_name} disconnected unexpectedly"
+                )));
+            }
+        }
+    }
+}
+
 fn dispatch(
     node_id: &str,
     unit: &dyn FlowUnit,
@@ -79,42 +107,36 @@ fn dispatch(
             )));
         }
 
-        if senders[port_index].is_empty() {
+        // Single-reader edges and terminal capture can take ownership without
+        // allocating a new Tensor/Vec. Fan-out clones only for extra readers.
+        if let Some((last, fanout)) = senders[port_index].split_last() {
+            for sender in fanout {
+                send_frame(
+                    node_id,
+                    port.name,
+                    sender,
+                    Frame {
+                        sequence,
+                        value: value.clone(),
+                    },
+                    cancelled,
+                )?;
+            }
+            send_frame(
+                node_id,
+                port.name,
+                last,
+                Frame { sequence, value },
+                cancelled,
+            )?;
+        } else {
             let key = format!("{node_id}.{}", port.name);
             captures
                 .lock()
                 .expect("capture mutex poisoned")
                 .entry(key)
                 .or_default()
-                .push(Frame {
-                    sequence,
-                    value: value.clone(),
-                });
-        }
-
-        for sender in &senders[port_index] {
-            let mut pending = Frame {
-                sequence,
-                value: value.clone(),
-            };
-            loop {
-                if cancelled.load(Ordering::Acquire) {
-                    return Ok(());
-                }
-                match sender.send_timeout(pending, Duration::from_millis(20)) {
-                    Ok(()) => break,
-                    Err(SendTimeoutError::Timeout(frame)) => pending = frame,
-                    Err(SendTimeoutError::Disconnected(_)) => {
-                        if cancelled.load(Ordering::Acquire) {
-                            return Ok(());
-                        }
-                        return Err(FlowError::Execution(format!(
-                            "downstream of {node_id}.{} disconnected unexpectedly",
-                            port.name
-                        )));
-                    }
-                }
-            }
+                .push(Frame { sequence, value });
         }
     }
     Ok(())

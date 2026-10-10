@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported local release build, 9-round three-path comparison before move-optimized Runtime dispatch",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "exact_soc": null,
+    "macos_version": null,
+    "git_commit": "ccf38e2317126749cb254bb2ba837d9ce0e6fb4a",
+    "profile": "release"
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10",
+  "measurement": {
+    "batch_items": 1000,
+    "benchmark": "paired_onnx_vs_identity_finite_batch",
+    "input_batch_bytes": 12000,
+    "input_shape": [
+      3
+    ],
+    "paired_rounds": 9,
+    "warmup_single_frame_calls_per_graph": 10,
+    "last_checksums": {
+      "identity": 4000,
+      "onnx_cpu": 5000,
+      "onnx_direct_cpu": 5000
+    },
+    "identity": {
+      "elapsed_ms": {
+        "mean": 0.6734675555555555,
+        "min": 0.544791,
+        "p50": 0.687875,
+        "p95": 0.9945
+      },
+      "per_round_elapsed_ms": [
+        0.9945,
+        0.687875,
+        0.69325,
+        0.717334,
+        0.708916,
+        0.608375,
+        0.560167,
+        0.546,
+        0.544791
+      ],
+      "throughput_items_per_sec_from_median_batch_duration": 1453752.498637107
+    },
+    "onnx_cpu": {
+      "elapsed_ms": {
+        "mean": 2.186027888888889,
+        "min": 1.833209,
+        "p50": 2.11925,
+        "p95": 2.697667
+      },
+      "per_round_elapsed_ms": [
+        2.697667,
+        2.61775,
+        2.29525,
+        2.197708,
+        2.110834,
+        2.11925,
+        1.845292,
+        1.957291,
+        1.833209
+      ],
+      "throughput_items_per_sec_from_median_batch_duration": 471865.0465966733
+    },
+    "onnx_direct_cpu": {
+      "elapsed_ms": {
+        "mean": 1.3578054444444445,
+        "min": 1.168625,
+        "p50": 1.299791,
+        "p95": 1.637333
+      },
+      "per_round_elapsed_ms": [
+        1.637333,
+        1.516667,
+        1.487708,
+        1.392916,
+        1.299791,
+        1.292667,
+        1.231375,
+        1.193167,
+        1.168625
+      ],
+      "throughput_items_per_sec_from_median_batch_duration": 769354.4577551314
+    },
+    "descriptive_comparison": {
+      "graph_to_direct_median_ratio": 1.6304544345975625,
+      "identity_median_as_percent_of_onnx_median": 32.45841689276867,
+      "onnx_graph_minus_direct_median_ms": 0.8194590000000002,
+      "onnx_minus_identity_median_ms": 1.431375
+    }
+  },
+  "limitations": [
+    "P50 gaps are descriptive; not pure Scheduler or kernel costs.",
+    "Three synthetic Relu elements are not representative of vision models.",
+    "Nine rounds in one invocation are affected by warming/trending and small-sample variance."
+  ]
+}
