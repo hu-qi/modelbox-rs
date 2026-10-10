@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "context": "GitHub-hosted ONNX CPU debug-mode CI on Linux x86_64 and native macOS ARM64",
+  "repository": "hu-qi/modelbox-rs",
+  "pr": 16,
+  "source_commit": "0d58aa3e99ee8e35507d1ad78550f292fe3a4a57",
+  "test_command": "cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv",
+  "model": "examples/mnist.onnx",
+  "dataset": "benchmarks/fixtures/mnist-test-10.csv",
+  "dataset_upstream": "https://github.com/makeyourownneuralnetwork/makeyourownneuralnetwork/blob/master/mnist_dataset/mnist_test_10.csv",
+  "dataset_upstream_blob": "2eb1befad4869b1b824d9158df4e0f273fd86097",
+  "labels": [
+    7,
+    2,
+    1,
+    0,
+    4,
+    1,
+    4,
+    9,
+    5,
+    9
+  ],
+  "results": [
+    {
+      "platform": "ubuntu-latest",
+      "workflow_run_id": 38082688502,
+      "job_id": 114302682502,
+      "accuracy": 1,
+      "correct": 10,
+      "sample_count": 10,
+      "predicted_labels": [
+        7,
+        2,
+        1,
+        0,
+        4,
+        1,
+        4,
+        9,
+        5,
+        9
+      ],
+      "misclassified": []
+    },
+    {
+      "platform": "macos-15",
+      "architecture": "arm64",
+      "workflow_run_id": 38082745237,
+      "job_id": 114302849416,
+      "accuracy": 1,
+      "correct": 10,
+      "sample_count": 10,
+      "predicted_labels": [
+        7,
+        2,
+        1,
+        0,
+        4,
+        1,
+        4,
+        9,
+        5,
+        9
+      ],
+      "misclassified": []
+    }
+  ],
+  "ci_gate_after_evidence": "min_correct=10 on fixed ten samples",
+  "limitations": [
+    "This ten-sample diagnostic result is not a statistically representative accuracy estimate.",
+    "Missing digit labels 3,6,8 from the small fixture; cannot validate each class.",
+    "The trained ONNX model runs with the same ONNX Runtime CPU provider on both architectures; no independent numerical implementation used.",
+    "Model loading and CSV parsing are outside benchmarking context; evaluation is functional."
+  ]
+}

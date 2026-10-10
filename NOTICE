@@ -14,3 +14,10 @@ Third-party trained MNIST model fixture:
 - Source: https://github.com/microsoft/onnxruntime-inference-examples/blob/main/c_cxx/MNIST/mnist.onnx
 - License: MIT, see third_party/mnist/LICENSE
 - Upstream git blob SHA: fc1a3f733c6e6243dd23dacb125b7a372de55a50
+
+Labeled MNIST test CSV subset:
+- File: benchmarks/fixtures/mnist-test-10.csv
+- Source: https://github.com/makeyourownneuralnetwork/makeyourownneuralnetwork/blob/master/mnist_dataset/mnist_test_10.csv
+- Upstream blob SHA: 2eb1befad4869b1b824d9158df4e0f273fd86097
+- Upstream repository license: GPL-2.0; the data is retained with its own license notice in third_party/mnist-test-10/LICENSE
+- Dataset provenance: 10 externally labeled MNIST test examples, not a statistically representative accuracy sample

@@ -147,3 +147,16 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 Output JSON includes the top-scoring digit and all ten raw logits. Input must be exactly 28×28 grayscale PNG (8 bit). **No resizing, automatic RGB conversion, inversion or adaptive normalization is performed**. The PNG depicts the same synthetic hand-drawn-style pattern as the existing tensor fixture; this validates ingestion and prediction plumbing, not accuracy on labeled MNIST data. The user-observed Mac logits are recorded as a regression baseline, not an independent oracle.
+
+### Evaluation against labeled MNIST test samples
+
+A new experimental evaluation command reads **externally labeled MNIST test CSV records** (label + 784 grayscale pixel values). Unlike the hand-generated PNG demo, this makes an actual labeled comparison and reports per-image predictions, number correct, accuracy, confusion matrix, and mistakes:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv
+```
+
+An optional third argument `[min_correct]` sets a minimum *count* of correct classifications. A failure exits nonzero after printing all results. The model is loaded and the graph compiled once; inputs are executed in finite chunks. CSV values are normalized by dividing each uint8 pixel by 255. The reference file is a **10-row excerpt claimed as MNIST test samples by its external maintainer**, not the model's self-generated logits. The sample size is too small to estimate general classification accuracy or justify performance parity with other frameworks.
+
+Fixture attribution and reuse terms are documented in `third_party/mnist-test-10/README.md` and `LICENSE`. This phase does **not** establish independent floating-point operator correctness; the existing graph-vs-direct check still uses a shared backend.

@@ -29,7 +29,8 @@
 - [x] Optional FlowUnit `process_owned` path with backward-compatible borrowed default; built-in tensor.output and core.output forward their input buffers without cloning.
 - [x] Trained MNIST CNN f32 classification model and graph-vs-direct shape/numeric integration smoke tests (no accuracy claim).
 - [x] Strict grayscale PNG file-to-MNIST CPU classification CLI and user-observed logit regression.
-- [ ] Independently labeled classification accuracy fixture, object-detection fixtures and representative real-model performance baselines.
+- [x] Small independent-label MNIST test subset (10 rows) and inference/evaluation CLI with per-example predictions/confusion matrix (Linux and macOS ARM64 each observed 10/10; gated as fixed regression).
+- [ ] Statistically representative full MNIST accuracy baseline, independent operator-level inference oracle, object-detection fixtures and representative performance baselines.
 
 
 - ONNX Runtime CPU backend and tensor value design.

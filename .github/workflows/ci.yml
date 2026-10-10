@@ -68,6 +68,10 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
       - name: PNG decoder unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_png::tests
+      - name: Labeled MNIST test subset evaluation
+        run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
+      - name: Labeled MNIST CSV parser tests
+        run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
       - name: Bench unit tests
@@ -105,5 +109,9 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
       - name: PNG decoder unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_png::tests
+      - name: Labeled MNIST test subset evaluation
+        run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
+      - name: Labeled MNIST CSV parser tests
+        run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
