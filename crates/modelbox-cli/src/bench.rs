@@ -13,7 +13,12 @@ use crate::{usage, ONNX_GRAPH};
 const MAX_ITERATIONS: usize = 10_000;
 const MAX_WARMUP: usize = 1_000;
 
-fn parse_count(argument: Option<&String>, default: usize, max: usize, name: &str) -> Result<usize, FlowError> {
+fn parse_count(
+    argument: Option<&String>,
+    default: usize,
+    max: usize,
+    name: &str,
+) -> Result<usize, FlowError> {
     let parsed = match argument {
         Some(raw) => raw.parse::<usize>().map_err(|_| {
             FlowError::Execution(format!("{name} must be an integer between 1 and {max}"))
@@ -47,7 +52,9 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
         None => 10,
     };
     if warmup > MAX_WARMUP {
-        return Err(FlowError::Execution("warmup exceeds maximum 1000".to_owned()));
+        return Err(FlowError::Execution(
+            "warmup exceeds maximum 1000".to_owned(),
+        ));
     }
 
     let input: TensorF32 = serde_json::from_str(&fs::read_to_string(&args[1])?)?;
@@ -65,9 +72,10 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
         let start = Instant::now();
         let result = runtime.run_plan(&plan, vec![Value::TensorF32(input.clone())])?;
         let elapsed = start.elapsed();
-        let values = result.outputs.get("result.out").ok_or_else(|| {
-            FlowError::Execution("missing result.out terminal".to_owned())
-        })?;
+        let values = result
+            .outputs
+            .get("result.out")
+            .ok_or_else(|| FlowError::Execution("missing result.out terminal".to_owned()))?;
         let tensor = match values.as_slice() {
             [Value::TensorF32(tensor)] => tensor,
             _ => {
@@ -87,9 +95,8 @@ pub(crate) fn run(args: Vec<String>) -> Result<(), FlowError> {
     let min_ms = durations[0] as f64 / 1_000_000.0;
     let p50_ms = nearest_rank(&durations, 50, 100) as f64 / 1_000_000.0;
     let p95_ms = nearest_rank(&durations, 95, 100) as f64 / 1_000_000.0;
-    let mean_ms = durations.iter().map(|&n| n as f64).sum::<f64>()
-        / durations.len() as f64
-        / 1_000_000.0;
+    let mean_ms =
+        durations.iter().map(|&n| n as f64).sum::<f64>() / durations.len() as f64 / 1_000_000.0;
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -130,7 +137,10 @@ mod tests {
     fn iteration_bounds_are_enforced() {
         assert!(parse_count(Some(&"0".to_owned()), 100, 10_000, "iterations").is_err());
         assert!(parse_count(Some(&"10001".to_owned()), 100, 10_000, "iterations").is_err());
-        assert_eq!(parse_count(Some(&"12".to_owned()), 100, 10_000, "iterations").unwrap(), 12);
+        assert_eq!(
+            parse_count(Some(&"12".to_owned()), 100, 10_000, "iterations").unwrap(),
+            12
+        );
         assert_eq!(parse_count(None, 100, 10_000, "iterations").unwrap(), 100);
     }
 }
