@@ -24,6 +24,16 @@ pub trait FlowUnit: Send + Sync {
     fn inputs(&self) -> &'static [PortDef];
     fn outputs(&self) -> &'static [PortDef];
     fn process(&self, inputs: &[Value], config: &JsonValue) -> Result<Vec<Value>>;
+
+    /// Consume input values where the implementation can reuse their buffers.
+    ///
+    /// Existing custom FlowUnits need not change: by default this delegates
+    /// to the borrowed `process` method. Units that forward tensor/byte/text
+    /// values may override it to avoid copying large buffers.
+    fn process_owned(&self, inputs: Vec<Value>, config: &JsonValue) -> Result<Vec<Value>> {
+        self.process(&inputs, config)
+    }
+
     fn validate_config(&self, _config: &JsonValue) -> Result<()> {
         Ok(())
     }
@@ -131,6 +141,24 @@ impl FlowUnit for Builtin {
             ));
         }
         Ok(())
+    }
+
+    fn process_owned(&self, inputs: Vec<Value>, config: &JsonValue) -> Result<Vec<Value>> {
+        match self.name {
+            "tensor.output" => match inputs.as_slice() {
+                [Value::TensorF32(_)] => Ok(inputs),
+                _ => Err(FlowError::Execution(
+                    "tensor.output expects tensor_f32".to_owned(),
+                )),
+            },
+            "core.output" => match inputs.as_slice() {
+                [Value::Text(_)] => Ok(inputs),
+                _ => Err(FlowError::Execution(
+                    "core.output requires a text input at position 0".to_owned(),
+                )),
+            },
+            _ => self.process(&inputs, config),
+        }
     }
 
     fn process(&self, inputs: &[Value], config: &JsonValue) -> Result<Vec<Value>> {

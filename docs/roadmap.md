@@ -26,6 +26,7 @@
 - [x] Repeated alternating paired ONNX/Identity batch timings to measure run-to-run variability.
 - [x] Three-path control: direct ONNX FlowUnit, ONNX Graph and Identity Graph.
 - [x] Runtime dispatch moves owned values into single-consumer channels and terminal captures; only additional fan-out readers cause clones.
+- [x] Optional FlowUnit `process_owned` path with backward-compatible borrowed default; built-in tensor.output and core.output forward their input buffers without cloning.
 - [ ] Independent classification/object-detection fixtures, accuracy and real-model benchmarks.
 
 
