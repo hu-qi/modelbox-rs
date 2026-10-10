@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "Two consecutive user-reported Release CLI runs on one Apple Silicon Mac mini; single pair only, no repeated sample spread",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "macos_version": null,
+    "apple_soc": null,
+    "rustc_version": null,
+    "git_commit": null,
+    "profile": "release"
+  },
+  "items": 1000,
+  "warmup_single_frame_calls": 10,
+  "input_shape": [
+    3
+  ],
+  "input_batch_bytes": 12000,
+  "identity_graph": {
+    "command": "cargo run --release -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 1000 10",
+    "benchmark": "tensor_identity_finite_batch_throughput",
+    "contains_onnx_inference": false,
+    "elapsed_ms": 1.168167,
+    "throughput_items_per_sec": 856041.9871473857,
+    "aggregate_output_sum": 4000
+  },
+  "onnx_graph": {
+    "command": "cargo run --release -p modelbox-cli --features onnx -- bench-batch examples/relu.onnx examples/relu-input.json 1000 10",
+    "benchmark": "onnx_cpu_finite_batch_throughput",
+    "contains_onnx_inference": true,
+    "elapsed_ms": 1.872833,
+    "throughput_items_per_sec": 533950.4376524762,
+    "aggregate_output_sum": 5000
+  },
+  "descriptive_comparison": {
+    "difference_elapsed_ms": 0.704666,
+    "identity_elapsed_as_percent_of_onnx_elapsed": 62.37432809011801,
+    "interpretation": "Identity graph time is not pure scheduler overhead. Difference includes ONNX Runtime wrapping and allocation, not just model kernel time."
+  },
+  "warnings": [
+    "Single paired observation, not statistically robust.",
+    "Pure Identity graph preserves original negative tensor value, so its aggregate checksum is 4000 versus 5000 after Relu.",
+    "Only a three-float synthetic Relu fixture; finite batch cannot be extrapolated to vision workload or continuous stream.",
+    "Repeated paired bench-compare measurements and hardware subtype have not yet been supplied."
+  ]
+}

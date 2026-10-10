@@ -37,3 +37,14 @@ This substitutes a Rust tensor identity FlowUnit for the ONNX inference node. Al
 ## User-reported 1,000-item Relu batch baseline
 
 [2026-10-11-macos-arm64-relu-batch.json](baselines/2026-10-11-macos-arm64-relu-batch.json) records the Apple Silicon Mac mini result: 1,000 items in 2.334583 ms, 428,342.02 items/s, aggregate output sum 5,000.0. This is a **finite batch** throughput measurement, not a long-running sustained stream or a statistically robust throughput estimate. Exact SoC, OS version and repeated-run variance remain unmeasured.
+
+## Paired, interleaved comparison
+
+The `bench-compare` command samples both controls **within one process**, with their sessions and graphs compiled only once. Each pair alternates execution order (Identity→ONNX, then ONNX→Identity) to reduce systematic ordering bias. Statistics are based on repeated **wall-clock finite-batch durations** rather than the reciprocal of single-item latency:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10
+```
+
+The arguments are items per batch, number of paired rounds (3–31) and warmup single-frame calls per graph (0–1000). The command outputs per-round timings and P50/P95/mean durations for each graph. A ratio of Identity median to ONNX median is displayed as a descriptive comparison only, **not** a causal attribution of scheduler time or a direct ONNX kernel benchmark. Input batch cloning, checksums, model loading and graph compilation are outside timed sections, while worker/thread setup, bounded channels, inference and capture are included. Both modes preserve identical graph topology but use different middle operators. Results on synthetic 3-float Relu should not guide production performance conclusions.
