@@ -81,3 +81,18 @@ The `Runtime` can now pass owned inputs to a `FlowUnit::process_owned` hook. Exi
 This is one step toward lower-copy CPU dataflows. It does **not** change ONNX tensor output allocation, the ONNX session mutex, graph thread lifecycle, or multi-reader fan-out clones. Run the three-path benchmark on the same Mac before claiming performance improvements.
 
 The preceding optimization's local Apple Silicon 9-round measurements are archived in [baselines/2026-10-11-macos-arm64-owned-dispatch-observed.json](baselines/2026-10-11-macos-arm64-owned-dispatch-observed.json). They are **one invocation**, not a statistically controlled A/B estimate.
+
+## Trained MNIST CNN CPU workload
+
+A genuinely trained MNIST convolutional network is checked in as `examples/mnist.onnx` (26,454 bytes, upstream Microsoft ONNX Runtime inference-examples, MIT license). The fixture `examples/mnist-1-input.json` is a deterministic, **hand-generated digit-like grayscale image**, not a labeled MNIST evaluation sample.
+
+The graph consumes `[1,1,28,28]` f32 and emits `[1,10]` raw float logits. The `onnx_inference` integration tests compare Direct ONNX CPU and Graph ONNX CPU numeric results with a tolerance and check shape rejection. **This is a functional integration smoke test**, not an independent classification-accuracy assessment.
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  infer examples/mnist.onnx examples/mnist-1-input.json
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare examples/mnist.onnx examples/mnist-1-input.json 32 5 5
+```
+
+Start with a small finite batch (32) for this much larger workload. Larger batches may take significantly longer than synthetic Relu. The benchmark does not include image decode, model load, input preparation or stream ingestion; collect several Release runs on the same machine. See `third_party/mnist/LICENSE` and `third_party/mnist/README.md` for third-party provenance.

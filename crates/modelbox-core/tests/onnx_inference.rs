@@ -45,3 +45,56 @@ fn onnx_rejects_incorrect_shape() {
     let input = Value::TensorF32(TensorF32::new(vec![2], vec![1.0, 2.0]).unwrap());
     assert!(runtime.run(&graph(), input).is_err());
 }
+
+// Real pre-trained MNIST CNN (MIT licensed upstream), not the synthetic Relu
+// fixture. The input is a 28x28 grayscale tensor, not an accuracy dataset.
+#[test]
+fn trained_mnist_cnn_graph_matches_direct_flowunit() {
+    use modelbox_core::FlowUnit;
+
+    let model = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/mnist.onnx");
+    let input: TensorF32 =
+        serde_json::from_str(include_str!("../../../examples/mnist-1-input.json")).unwrap();
+    assert_eq!(input.shape(), &[1, 1, 28, 28]);
+    let unit = Arc::new(OnnxCpuFlowUnit::load(model).unwrap());
+
+    let direct = unit
+        .process(&[Value::TensorF32(input.clone())], &serde_json::Value::Null)
+        .unwrap();
+    let mut runtime = Runtime::default();
+    runtime.registry_mut().register(unit.clone()).unwrap();
+    let graph_output = runtime
+        .run(&graph(), Value::TensorF32(input))
+        .unwrap();
+    let graph_result = &graph_output.outputs["result.out"];
+    assert_eq!(graph_result.len(), 1);
+    let (expected, actual) = match (direct.as_slice(), graph_result.as_slice()) {
+        ([Value::TensorF32(expected)], [Value::TensorF32(actual)]) => (expected, actual),
+        _ => panic!("MNIST must emit a single float32 output tensor"),
+    };
+    assert_eq!(expected.shape(), &[1, 10]);
+    assert_eq!(actual.shape(), &[1, 10]);
+    for (&reference, &observed) in expected.data().iter().zip(actual.data()) {
+        assert!(reference.is_finite() && observed.is_finite());
+        assert!(
+            (reference - observed).abs() <= 0.0001 * reference.abs().max(1.0),
+            "ONNX direct {reference} differs from graph {observed}"
+        );
+    }
+    assert!(expected.data().iter().any(|score| *score != 0.0));
+}
+
+#[test]
+fn trained_mnist_cnn_rejects_invalid_image_shape() {
+    let model = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/mnist.onnx");
+    let mut runtime = Runtime::default();
+    runtime
+        .registry_mut()
+        .register(Arc::new(OnnxCpuFlowUnit::load(model).unwrap()))
+        .unwrap();
+    // Correct element count but wrong spatial rank/dimensions.
+    let wrong = TensorF32::new(vec![784], vec![0.0; 784]).unwrap();
+    assert!(runtime.run(&graph(), Value::TensorF32(wrong)).is_err());
+}
