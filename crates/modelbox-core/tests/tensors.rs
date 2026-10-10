@@ -115,7 +115,10 @@ fn tensor_output_moves_buffer_without_copying() {
 fn tensor_output_owned_path_checks_types() {
     let unit = FlowRegistry::default().get("tensor.output").unwrap();
     let error = unit
-        .process_owned(vec![Value::Text("wrong type".to_owned())], &serde_json::Value::Null)
+        .process_owned(
+            vec![Value::Text("wrong type".to_owned())],
+            &serde_json::Value::Null,
+        )
         .unwrap_err();
     assert!(error.to_string().contains("tensor_f32"));
 }
