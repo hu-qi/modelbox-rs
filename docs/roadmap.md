@@ -19,7 +19,9 @@
 - [x] Experimental opt-in ONNX Runtime CPU unit for one f32 input/output.
 - [x] Synthetic ONNX Relu fixture, inference regression, and CLI command.
 - [ ] Multiple input/output ports, dynamic shapes, and additional dtypes.
-- [ ] Reference model and independently verified accuracy and benchmark results.
+- [x] Reproducible per-graph-call ONNX CPU latency command (warmup, p50/p95, checksum).
+- [x] Dedicated macOS Apple Silicon ONNX regression job.
+- [ ] Independent classification/object-detection fixtures, accuracy and real-model benchmarks.
 
 
 - ONNX Runtime CPU backend and tensor value design.

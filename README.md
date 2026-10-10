@@ -68,3 +68,16 @@ cargo run -p modelbox-cli --features onnx -- infer examples/relu.onnx examples/r
 The optional feature uses pinned `ort = 2.0.0-rc.13` for ONNX Runtime 1.28 and requires Rust >=1.88. The initial build downloads platform-specific ONNX Runtime binaries; network access is required.
 
 This first prototype supports exactly one input and one output, f32 tensors, CPU only, and a mutex-protected session. Model pre/postprocessing, dynamic streaming, multi-input and GPU/NPU remain out of scope. `examples/relu.onnx` is a minimal synthetic Relu model generated specifically for regression tests.
+
+### Repeatable CPU inference latency baseline
+
+With the optional `onnx` feature enabled:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench examples/relu.onnx examples/relu-input.json 100 10
+```
+
+The last arguments are measured iterations (default 100, max 10,000) and warmup iterations (default 10, max 1,000). The command emits machine-readable JSON with p50/p95/mean/min latency in milliseconds, inferred tensor shape, output checksum, and approximate items/sec. ONNX session loading, model parsing and Graph IR compilation are excluded from the timed section. Each measured iteration **includes** input cloning, spawning graph worker threads, bounded channel transmission, Tensor marshaling, model inference, and capturing the output. The value is therefore **end-to-end per-graph-call latency**, not pure ONNX kernel latency. Timings from the synthetic three-element Relu model must not be extrapolated to real models; do not compare Debug and Release timings.
+
+CI now validates the opt-in ONNX model and CLI on the `macos-15` arm64 GitHub-hosted runner (in addition to Linux). This tests software portability, not GPU/NPU.
