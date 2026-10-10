@@ -22,6 +22,7 @@
 - [x] Reproducible per-graph-call ONNX CPU latency command (warmup, p50/p95, checksum).
 - [x] Dedicated macOS Apple Silicon ONNX regression job.
 - [x] Explicit finite-batch measured throughput benchmark and captured macOS arm64 baseline.
+- [x] Tensor identity graph overhead control (same graph topology, no ONNX model).
 - [ ] Independent classification/object-detection fixtures, accuracy and real-model benchmarks.
 
 

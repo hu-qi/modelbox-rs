@@ -5,7 +5,7 @@ use std::fs;
 use std::sync::Arc;
 use std::time::Instant;
 
-use modelbox_core::{FlowError, GraphSpec, OnnxCpuFlowUnit, Runtime, TensorF32, Value};
+use modelbox_core::{DataType, FlowError, FlowUnit, GraphSpec, OnnxCpuFlowUnit, PortDef, Runtime, TensorF32, Value};
 use serde_json::json;
 
 use crate::{usage, ONNX_GRAPH};
@@ -156,6 +156,55 @@ mod tests {
 
 const MAX_BATCH_BYTES: usize = 64 * 1024 * 1024;
 
+const TENSOR_IN: [PortDef; 1] = [PortDef::new("in", DataType::TensorF32)];
+const TENSOR_OUT: [PortDef; 1] = [PortDef::new("out", DataType::TensorF32)];
+
+const IDENTITY_GRAPH: &str = r#"{
+  "name": "tensor_identity_benchmark",
+  "queue_capacity": 2,
+  "nodes": [
+    {"id": "source", "unit": "tensor.input"},
+    {"id": "infer", "unit": "bench.tensor_identity"},
+    {"id": "result", "unit": "tensor.output"}
+  ],
+  "edges": [
+    {"from": "source.out", "to": "infer.in"},
+    {"from": "infer.out", "to": "result.in"}
+  ]
+}"#;
+
+/// A test-only FlowUnit preserving the 3-node inference graph topology.
+/// Measures graph/worker/channel/tensor cloning without ONNX Runtime calls.
+struct TensorIdentity;
+
+impl FlowUnit for TensorIdentity {
+    fn name(&self) -> &'static str {
+        "bench.tensor_identity"
+    }
+
+    fn inputs(&self) -> &'static [PortDef] {
+        &TENSOR_IN
+    }
+
+    fn outputs(&self) -> &'static [PortDef] {
+        &TENSOR_OUT
+    }
+
+    fn process(
+        &self,
+        inputs: &[Value],
+        _config: &serde_json::Value,
+    ) -> Result<Vec<Value>, FlowError> {
+        match inputs {
+            [Value::TensorF32(tensor)] => Ok(vec![Value::TensorF32(tensor.clone())]),
+            _ => Err(FlowError::Execution(
+                "tensor identity expects one f32 tensor".to_owned(),
+            )),
+        }
+    }
+}
+
+
 fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError> {
     let bytes = input
         .data()
@@ -178,6 +227,22 @@ fn batch_input_bytes(input: &TensorF32, count: usize) -> Result<usize, FlowError
 /// The entire input batch and graph execution plan are built before timing;
 /// worker startup, inference, backpressure, capture and shutdown are timed.
 pub(crate) fn run_batch(args: Vec<String>) -> Result<(), FlowError> {
+    run_batch_impl(args, false)
+}
+
+/// Matches the 3-node ONNX graph with an identity tensor operator,
+/// isolating much of the graph scheduling/transport/capture overhead.
+pub(crate) fn run_overhead(args: Vec<String>) -> Result<(), FlowError> {
+    if args.is_empty() || args.len() > 3 {
+        return Err(FlowError::Execution(usage().to_owned()));
+    }
+    let mut normalized = Vec::with_capacity(args.len() + 1);
+    normalized.push("<no-model>".to_owned());
+    normalized.extend(args);
+    run_batch_impl(normalized, true)
+}
+
+fn run_batch_impl(args: Vec<String>, without_onnx: bool) -> Result<(), FlowError> {
     if args.len() < 2 || args.len() > 4 {
         return Err(FlowError::Execution(usage().to_owned()));
     }
@@ -194,11 +259,16 @@ pub(crate) fn run_batch(args: Vec<String>) -> Result<(), FlowError> {
 
     let input: TensorF32 = serde_json::from_str(&fs::read_to_string(&args[1])?)?;
     let input_batch_bytes = batch_input_bytes(&input, items)?;
-    let graph: GraphSpec = serde_json::from_str(ONNX_GRAPH)?;
+    let graph: GraphSpec =
+        serde_json::from_str(if without_onnx { IDENTITY_GRAPH } else { ONNX_GRAPH })?;
     let mut runtime = Runtime::default();
-    runtime
-        .registry_mut()
-        .register(Arc::new(OnnxCpuFlowUnit::load(&args[0])?))?;
+    if without_onnx {
+        runtime.registry_mut().register(Arc::new(TensorIdentity))?;
+    } else {
+        runtime
+            .registry_mut()
+            .register(Arc::new(OnnxCpuFlowUnit::load(&args[0])?))?;
+    }
     let plan = runtime.compile(&graph)?;
 
     for _ in 0..warmup {
@@ -250,9 +320,14 @@ pub(crate) fn run_batch(args: Vec<String>) -> Result<(), FlowError> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "benchmark": "onnx_cpu_finite_batch_throughput",
-            "execution_provider": "CPU",
-            "model_path": args[0],
+            "benchmark": if without_onnx {
+                "tensor_identity_finite_batch_throughput"
+            } else {
+                "onnx_cpu_finite_batch_throughput"
+            },
+            "execution_provider": if without_onnx { "none" } else { "CPU" },
+            "contains_onnx_inference": !without_onnx,
+            "model_path": if without_onnx { serde_json::Value::Null } else { json!(args[0]) },
             "input_shape": input.shape(),
             "output_shape": output_shape,
             "batch_items": items,
