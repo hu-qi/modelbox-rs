@@ -1,0 +1,13 @@
+{
+  "name": "onnx_cpu_relu",
+  "queue_capacity": 2,
+  "nodes": [
+    {"id": "source", "unit": "tensor.input"},
+    {"id": "infer", "unit": "onnx.cpu"},
+    {"id": "result", "unit": "tensor.output"}
+  ],
+  "edges": [
+    {"from": "source.out", "to": "infer.in"},
+    {"from": "infer.out", "to": "result.in"}
+  ]
+}

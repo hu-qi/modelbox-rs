@@ -55,3 +55,16 @@ See [architecture](docs/architecture.md), [roadmap](docs/roadmap.md), and [contr
 ## License and attribution
 
 Licensed under Apache-2.0. See LICENSE and NOTICE. No upstream C++ source is copied in this prototype. Original ModelBox trademarks and third-party SDKs remain with their respective owners.
+
+## Experimental v0.2 ONNX CPU feature
+
+Default tests still run without ONNX Runtime. Opt in for a real ONNX Runtime CPU inference using the checked-in synthetic Relu model:
+
+~~~bash
+cargo test -p modelbox-core --features onnx
+cargo run -p modelbox-cli --features onnx -- infer examples/relu.onnx examples/relu-input.json
+~~~
+
+The optional feature uses pinned `ort = 2.0.0-rc.13` for ONNX Runtime 1.28 and requires Rust >=1.88. The initial build downloads platform-specific ONNX Runtime binaries; network access is required.
+
+This first prototype supports exactly one input and one output, f32 tensors, CPU only, and a mutex-protected session. Model pre/postprocessing, dynamic streaming, multi-input and GPU/NPU remain out of scope. `examples/relu.onnx` is a minimal synthetic Relu model generated specifically for regression tests.

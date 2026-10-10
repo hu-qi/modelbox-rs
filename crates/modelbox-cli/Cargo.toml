@@ -14,3 +14,7 @@ path = "src/main.rs"
 [dependencies]
 modelbox-core = { path = "../modelbox-core" }
 serde_json = "1"
+
+[features]
+default = []
+onnx = ["modelbox-core/onnx"]

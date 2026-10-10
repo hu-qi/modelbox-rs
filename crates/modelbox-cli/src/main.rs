@@ -5,6 +5,8 @@ use std::path::Path;
 use modelbox_core::{FlowError, GraphSpec, Runtime, Value};
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
+#[cfg(feature = "onnx")]
+const ONNX_GRAPH: &str = include_str!("../../../examples/relu.json");
 
 fn usage() -> &'static str {
     "Usage:
@@ -12,8 +14,9 @@ fn usage() -> &'static str {
   modelbox validate <graph.json>
   modelbox run <graph.json> <TEXT>
   modelbox run-batch <graph.json> <TEXT ...>
+  modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
 
-The input source is core.input and the v0.1 data type is text.
+Text examples use core.input; ONNX inference is an opt-in feature.
 Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
 }
 
@@ -50,6 +53,30 @@ fn execute() -> Result<(), FlowError> {
                 inputs
             };
             let result = runtime.run_many(&graph, inputs)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        #[cfg(feature = "onnx")]
+        "infer" => {
+            use std::sync::Arc;
+
+            use modelbox_core::{OnnxCpuFlowUnit, TensorF32};
+
+            let model_path = args
+                .next()
+                .ok_or_else(|| FlowError::Execution(usage().to_owned()))?;
+            let tensor_path = args
+                .next()
+                .ok_or_else(|| FlowError::Execution(usage().to_owned()))?;
+            if args.next().is_some() {
+                return Err(FlowError::Execution(usage().to_owned()));
+            }
+            let tensor: TensorF32 = serde_json::from_str(&fs::read_to_string(tensor_path)?)?;
+            let graph = parse_graph(ONNX_GRAPH)?;
+            let mut inference_runtime = Runtime::default();
+            inference_runtime
+                .registry_mut()
+                .register(Arc::new(OnnxCpuFlowUnit::load(model_path)?))?;
+            let result = inference_runtime.run(&graph, Value::TensorF32(tensor))?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
         "validate" => {
