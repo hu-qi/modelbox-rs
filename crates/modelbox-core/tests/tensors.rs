@@ -84,9 +84,7 @@ fn tensor_fanout_with_backpressure_keeps_each_sequence() {
 
     let values: Vec<Value> = (0..256)
         .map(|index| {
-            Value::TensorF32(
-                TensorF32::new(vec![3], vec![index as f32, -1.0, 3.0]).unwrap(),
-            )
+            Value::TensorF32(TensorF32::new(vec![3], vec![index as f32, -1.0, 3.0]).unwrap())
         })
         .collect();
     let result = Runtime::default().run_many(&graph, values.clone()).unwrap();
