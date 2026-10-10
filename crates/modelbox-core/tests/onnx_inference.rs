@@ -100,9 +100,10 @@ fn trained_mnist_cnn_matches_observed_mac_logit_baseline() {
     let model = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mnist.onnx");
     let input: TensorF32 =
         serde_json::from_str(include_str!("../../../examples/mnist-1-input.json")).unwrap();
-    let mac_observed: Vec<f32> =
-        serde_json::from_str(include_str!("../../../examples/mnist-1-observed-logits.json"))
-            .unwrap();
+    let mac_observed: Vec<f32> = serde_json::from_str(include_str!(
+        "../../../examples/mnist-1-observed-logits.json"
+    ))
+    .unwrap();
 
     let mut runtime = Runtime::default();
     runtime
