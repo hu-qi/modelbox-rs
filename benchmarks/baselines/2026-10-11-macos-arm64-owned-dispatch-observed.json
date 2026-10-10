@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported local Mac mini Release output, single 9-round invocation after runtime dispatch move optimization",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "architecture": "aarch64-apple-darwin",
+    "macos_version": null,
+    "exact_soc": null,
+    "profile": "release",
+    "git_commit": "979909c23db35c5eecb4c9de9e7901cfed7c7969"
+  },
+  "command": "cargo run --release -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 1000 9 10",
+  "batch_items": 1000,
+  "paired_rounds": 9,
+  "warmup_single_frame_calls_per_graph": 10,
+  "input_shape": [
+    3
+  ],
+  "input_batch_bytes": 12000,
+  "identity": {
+    "elapsed_ms": {
+      "mean": 0.5596573333333333,
+      "min": 0.441875,
+      "p50": 0.552958,
+      "p95": 0.665292
+    },
+    "per_round_elapsed_ms": [
+      0.553416,
+      0.58125,
+      0.665292,
+      0.441875,
+      0.636541,
+      0.536084,
+      0.552958,
+      0.544875,
+      0.524625
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 1808455.6150738394
+  },
+  "onnx_cpu": {
+    "elapsed_ms": {
+      "mean": 1.917051,
+      "min": 1.845584,
+      "p50": 1.902375,
+      "p95": 2.050083
+    },
+    "per_round_elapsed_ms": [
+      1.885875,
+      1.863792,
+      1.924834,
+      2.050083,
+      1.858875,
+      1.902375,
+      1.845584,
+      1.940416,
+      1.981625
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 525658.716078586
+  },
+  "onnx_direct_cpu": {
+    "elapsed_ms": {
+      "mean": 1.2425695555555556,
+      "min": 1.117625,
+      "p50": 1.26875,
+      "p95": 1.339959
+    },
+    "per_round_elapsed_ms": [
+      1.117625,
+      1.187625,
+      1.168042,
+      1.281,
+      1.26875,
+      1.228083,
+      1.313584,
+      1.278458,
+      1.339959
+    ],
+    "throughput_items_per_sec_from_median_batch_duration": 788177.3399014778
+  },
+  "last_checksums": {
+    "identity": 4000,
+    "onnx_cpu": 5000,
+    "onnx_direct_cpu": 5000
+  },
+  "descriptive_comparison": {
+    "graph_to_direct_median_ratio": 1.4994088669950738,
+    "identity_median_as_percent_of_onnx_median": 29.066719232538272,
+    "onnx_graph_minus_direct_median_ms": 0.6336249999999999,
+    "onnx_minus_identity_median_ms": 1.3494169999999999
+  },
+  "limitations": [
+    "Single 9-round after-change invocation, not stable proven speedup.",
+    "Comparison to before-change baseline is across non-interleaved runs.",
+    "Three-element Relu synthetic model is not representative of real AI workload.",
+    "Median subtraction does not isolate scheduling overhead."
+  ]
+}

@@ -200,7 +200,7 @@ impl Worker {
                     }
                 }
             }
-            let output = self.unit.process(&values, &self.config)?;
+            let output = self.unit.process_owned(values, &self.config)?;
             dispatch(
                 &self.node_id,
                 self.unit.as_ref(),

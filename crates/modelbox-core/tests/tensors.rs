@@ -92,3 +92,30 @@ fn tensor_fanout_with_backpressure_keeps_each_sequence() {
     assert_eq!(result.outputs["left.out"], values);
     assert_eq!(result.outputs["right.out"], values);
 }
+
+#[test]
+fn tensor_output_moves_buffer_without_copying() {
+    let graph: GraphSpec = serde_json::from_str(GRAPH).unwrap();
+    let tensor = TensorF32::new(vec![4], vec![1.0, 2.0, -3.0, 4.0]).unwrap();
+    let original_buffer = tensor.data().as_ptr();
+    let result = Runtime::default()
+        .run(&graph, Value::TensorF32(tensor))
+        .unwrap();
+    let captured = &result.outputs["result.out"];
+    match captured.as_slice() {
+        [Value::TensorF32(output)] => {
+            assert_eq!(output.data(), &[1.0, 2.0, -3.0, 4.0]);
+            assert_eq!(original_buffer, output.data().as_ptr());
+        }
+        _ => panic!("tensor.output must produce exactly one f32 tensor"),
+    }
+}
+
+#[test]
+fn tensor_output_owned_path_checks_types() {
+    let unit = FlowRegistry::default().get("tensor.output").unwrap();
+    let error = unit
+        .process_owned(vec![Value::Text("wrong type".to_owned())], &serde_json::Value::Null)
+        .unwrap_err();
+    assert!(error.to_string().contains("tensor_f32"));
+}

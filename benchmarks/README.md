@@ -73,3 +73,11 @@ An experimental Runtime dispatch optimization moves the output `Value` into a si
 This avoids redundant `Vec<f32>` allocations in the Graph transport path but **does not remove** the `TensorF32` cloning done inside the built-in `tensor.output` FlowUnit, nor the ONNX Runtime adapter's output allocation. It is not zero-copy or an alternative CPU execution provider.
 
 The before-change Apple Silicon three-mode baseline is captured in [baselines/2026-10-11-macos-arm64-three-path.json](baselines/2026-10-11-macos-arm64-three-path.json). To establish a credible effect, run `bench-compare` before and after on the *same machine* (repeated invocations, Release mode, consistent power state and identical input), preferably with interleaved A/B commits. No performance improvement is claimed before this is measured.
+
+## Owned-input FlowUnit forwarding experiment
+
+The `Runtime` can now pass owned inputs to a `FlowUnit::process_owned` hook. Existing custom implementations remain source-compatible because its default delegates to the original borrowed `process` method; the built-in `tensor.output` and `core.output` forward the owned values rather than cloning their buffers. A regression test verifies `tensor.output` preserves the exact original `Vec<f32>` allocation for a single-reader graph, and invalid input types still fail.
+
+This is one step toward lower-copy CPU dataflows. It does **not** change ONNX tensor output allocation, the ONNX session mutex, graph thread lifecycle, or multi-reader fan-out clones. Run the three-path benchmark on the same Mac before claiming performance improvements.
+
+The preceding optimization's local Apple Silicon 9-round measurements are archived in [baselines/2026-10-11-macos-arm64-owned-dispatch-observed.json](baselines/2026-10-11-macos-arm64-owned-dispatch-observed.json). They are **one invocation**, not a statistically controlled A/B estimate.
