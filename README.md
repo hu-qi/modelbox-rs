@@ -136,3 +136,14 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 The model consumes a `[1,1,28,28]` f32 image tensor and emits a `[1,10]` f32 logit tensor (softmax and image preprocessing are outside this CLI demo). CI checks output shape, finite numeric values, direct-FlowUnit/Graph consistency within tolerance, and invalid image-shape rejection. The user-created digit-like fixture is **not** a labeled MNIST test-set sample; passing these checks demonstrates integration, **not classification accuracy**. Real image preprocessing, curated labeled accuracy evaluation, and object detection remain future work. License and source attribution: `third_party/mnist/LICENSE`.
+
+### MNIST grayscale PNG → CNN → predicted digit
+
+The opt-in `infer-mnist-png` CLI reads an actual PNG image, validates its dimensions and pixel format, normalizes each 8-bit grayscale pixel to `f32 / 255`, and passes the `[1,1,28,28]` tensor through the ONNX CPU Graph.
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  infer-mnist-png examples/mnist.onnx examples/mnist-1.png
+```
+
+Output JSON includes the top-scoring digit and all ten raw logits. Input must be exactly 28×28 grayscale PNG (8 bit). **No resizing, automatic RGB conversion, inversion or adaptive normalization is performed**. The PNG depicts the same synthetic hand-drawn-style pattern as the existing tensor fixture; this validates ingestion and prediction plumbing, not accuracy on labeled MNIST data. The user-observed Mac logits are recorded as a regression baseline, not an independent oracle.

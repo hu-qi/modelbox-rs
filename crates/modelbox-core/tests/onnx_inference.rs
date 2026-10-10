@@ -94,3 +94,39 @@ fn trained_mnist_cnn_rejects_invalid_image_shape() {
     let wrong = TensorF32::new(vec![784], vec![0.0; 784]).unwrap();
     assert!(runtime.run(&graph(), Value::TensorF32(wrong)).is_err());
 }
+
+#[test]
+fn trained_mnist_cnn_matches_observed_mac_logit_baseline() {
+    let model = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mnist.onnx");
+    let input: TensorF32 =
+        serde_json::from_str(include_str!("../../../examples/mnist-1-input.json")).unwrap();
+    let mac_observed: Vec<f32> =
+        serde_json::from_str(include_str!("../../../examples/mnist-1-observed-logits.json"))
+            .unwrap();
+
+    let mut runtime = Runtime::default();
+    runtime
+        .registry_mut()
+        .register(Arc::new(OnnxCpuFlowUnit::load(model).unwrap()))
+        .unwrap();
+    let result = runtime.run(&graph(), Value::TensorF32(input)).unwrap();
+    let actual = match result.outputs["result.out"].as_slice() {
+        [Value::TensorF32(tensor)] => tensor.data(),
+        _ => panic!("MNIST graph must capture one tensor"),
+    };
+    assert_eq!(mac_observed.len(), 10);
+    assert_eq!(actual.len(), 10);
+    for (&expected, &observed) in mac_observed.iter().zip(actual.iter()) {
+        let tolerance = 0.02_f32.max(expected.abs() * 0.002);
+        assert!(
+            (expected - observed).abs() <= tolerance,
+            "observed golden score {expected} vs inference {observed}"
+        );
+    }
+    let predicted = actual
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.total_cmp(b.1))
+        .map(|(index, _)| index);
+    assert_eq!(predicted, Some(1));
+}

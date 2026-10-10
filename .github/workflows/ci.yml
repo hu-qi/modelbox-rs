@@ -62,8 +62,12 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
       - name: MNIST CNN CLI inference
         run: cargo run -p modelbox-cli --features onnx -- infer examples/mnist.onnx examples/mnist-1-input.json
+      - name: MNIST PNG end-to-end classification
+        run: cargo run -p modelbox-cli --features onnx -- infer-mnist-png examples/mnist.onnx examples/mnist-1.png
       - name: MNIST CNN three-path smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
+      - name: PNG decoder unit tests
+        run: cargo test -p modelbox-cli --features onnx mnist_png::tests
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
       - name: Bench unit tests
@@ -95,7 +99,11 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- bench-overhead examples/relu-input.json 32 2
       - name: MNIST CNN CLI inference
         run: cargo run -p modelbox-cli --features onnx -- infer examples/mnist.onnx examples/mnist-1-input.json
+      - name: MNIST PNG end-to-end classification
+        run: cargo run -p modelbox-cli --features onnx -- infer-mnist-png examples/mnist.onnx examples/mnist-1.png
       - name: MNIST CNN three-path smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/mnist.onnx examples/mnist-1-input.json 8 3 1
+      - name: PNG decoder unit tests
+        run: cargo test -p modelbox-cli --features onnx mnist_png::tests
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1

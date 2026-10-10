@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-reported output from Apple Silicon Mac mini Release CLI; five rounds in one invocation",
+  "environment": {
+    "device": "Apple Silicon Mac mini",
+    "soc": null,
+    "macos_version": null,
+    "rustc_version": null,
+    "architecture": "aarch64-apple-darwin",
+    "git_commit": "3076baa36758772354ffac7a067c3478af75541d"
+  },
+  "model": "examples/mnist.onnx",
+  "tensor_input": "examples/mnist-1-input.json",
+  "image_inference": {
+    "input_shape": [
+      1,
+      1,
+      28,
+      28
+    ],
+    "output_shape": [
+      1,
+      10
+    ],
+    "logits": [
+      -9.183288,
+      11.235941,
+      7.069416,
+      5.08604,
+      -4.504697,
+      -1.2088356,
+      -19.874105,
+      8.174934,
+      -6.108112,
+      0.1796776
+    ],
+    "argmax_class_index": 1,
+    "origin": "Observed ModelBox Rust result, not independent reference output"
+  },
+  "benchmark": {
+    "items": 32,
+    "rounds": 5,
+    "warmup": 5,
+    "input_batch_bytes": 100352,
+    "identity": {
+      "min_ms": 0.055459,
+      "p50_ms": 0.064667,
+      "p95_ms": 0.228708,
+      "mean_ms": 0.09874160000000001,
+      "per_round_ms": [
+        0.228708,
+        0.055459,
+        0.063708,
+        0.081166,
+        0.064667
+      ],
+      "items_per_second_from_p50": 494842.8100886078
+    },
+    "onnx_graph": {
+      "min_ms": 2.001458,
+      "p50_ms": 2.294834,
+      "p95_ms": 2.482583,
+      "mean_ms": 2.2440666,
+      "per_round_ms": [
+        2.001458,
+        2.294834,
+        2.295083,
+        2.482583,
+        2.146375
+      ],
+      "items_per_second_from_p50": 13944.363731755762
+    },
+    "onnx_direct": {
+      "min_ms": 1.781708,
+      "p50_ms": 1.93675,
+      "p95_ms": 2.397958,
+      "mean_ms": 2.0049498,
+      "per_round_ms": [
+        1.781708,
+        2.397958,
+        1.8345,
+        2.073833,
+        1.93675
+      ],
+      "items_per_second_from_p50": 16522.524848328387
+    },
+    "last_checksums": {
+      "identity": 2848,
+      "onnx_cpu": -292.25690841674805,
+      "onnx_direct_cpu": -292.25690841674805
+    },
+    "descriptive_comparison": {
+      "graph_to_direct_median_ratio": 1.1848891183684005,
+      "identity_median_as_percent_of_onnx_median": 2.817938029504531,
+      "onnx_graph_minus_direct_median_ms": 0.35808399999999985,
+      "onnx_minus_identity_median_ms": 2.230167
+    }
+  },
+  "caveats": [
+    "Only five rounds: P95 and variance estimates are unstable.",
+    "Same synthetic image is repeated 32 times; no true labeled accuracy study.",
+    "Decoding, file I/O, model loading, and image acquisition excluded from bench-compare.",
+    "Do not infer live-stream throughput or independent ONNX correctness."
+  ]
+}

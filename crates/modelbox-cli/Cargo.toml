@@ -14,7 +14,8 @@ path = "src/main.rs"
 [dependencies]
 modelbox-core = { path = "../modelbox-core" }
 serde_json = "1"
+png = { version = "0.18.1", optional = true }
 
 [features]
 default = []
-onnx = ["modelbox-core/onnx"]
+onnx = ["modelbox-core/onnx", "dep:png"]
