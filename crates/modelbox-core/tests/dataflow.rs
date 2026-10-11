@@ -239,6 +239,7 @@ fn runtime_rejects_incorrect_output_type() {
         .run(&graph, Value::Text("x".into()))
         .unwrap_err();
     assert!(error.to_string().contains("emitted"));
+    assert_eq!(error.node_id(), Some("upper"));
 }
 
 #[test]

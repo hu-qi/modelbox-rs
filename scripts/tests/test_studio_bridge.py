@@ -63,3 +63,10 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(data["node_process"]["upper"]["calls"], 1)
         mock.assert_called_once()
         self.assertEqual(mock.call_args.args[0], "run-profile")
+
+    def test_error_origin_is_forwarded_from_cli_metadata(self):
+        stderr = 'modelbox: execution error at node upper: deliberate failure\nMODELBOX_ERROR_JSON:{"message":"failed","node_id":"upper"}\n'
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=1, stdout="", stderr=stderr)):
+            status, body = bridge.invoke("run", {"graph": {}, "input": "hello"})
+        self.assertEqual(status, 422)
+        self.assertEqual(body["node_id"], "upper")

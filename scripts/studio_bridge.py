@@ -47,7 +47,16 @@ def invoke(action, payload):
     elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
     diagnostics = {"elapsed_ms": elapsed_ms, "scope": "bridge_cli_wall_time"}
     if result.returncode:
-        return 422, {"error": (result.stderr or result.stdout)[-4096:], "diagnostics": diagnostics}
+        detail = {"error": (result.stderr or result.stdout)[-4096:], "diagnostics": diagnostics}
+        for line in result.stderr.splitlines():
+            if line.startswith("MODELBOX_ERROR_JSON:"):
+                try:
+                    parsed = json.loads(line.removeprefix("MODELBOX_ERROR_JSON:"))
+                    if isinstance(parsed, dict) and isinstance(parsed.get("node_id"), str):
+                        detail["node_id"] = parsed["node_id"]
+                except json.JSONDecodeError:
+                    pass
+        return 422, detail
     if action == "catalog":
         return 200, json.loads(result.stdout)
     if action in ("run", "run-profile"):
