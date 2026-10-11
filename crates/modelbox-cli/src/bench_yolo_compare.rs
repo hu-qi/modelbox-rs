@@ -20,9 +20,16 @@ fn invalid(msg: impl std::fmt::Display) -> FlowError {
     FlowError::Execution(format!("YOLO direct-vs-Graph comparison: {msg}"))
 }
 
-fn count(raw: Option<&String>, default: usize, min: usize, max: usize) -> modelbox_core::Result<usize> {
+fn count(
+    raw: Option<&String>,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> modelbox_core::Result<usize> {
     let value = match raw {
-        Some(value) => value.parse::<usize>().map_err(|_| invalid(format!("count must be {min}..={max}")))?,
+        Some(value) => value
+            .parse::<usize>()
+            .map_err(|_| invalid(format!("count must be {min}..={max}")))?,
         None => default,
     };
     if !(min..=max).contains(&value) {
@@ -55,7 +62,14 @@ fn graph(
     let result = runtime.run_plan(plan, vec![input]);
     let ns = start.elapsed().as_nanos();
     let mut output = result?.outputs;
-    Ok((ns, one_tensor(output.remove("result.out").ok_or_else(|| invalid("missing result.out"))?)?))
+    Ok((
+        ns,
+        one_tensor(
+            output
+                .remove("result.out")
+                .ok_or_else(|| invalid("missing result.out"))?,
+        )?,
+    ))
 }
 
 fn statistics(values: &[u128]) -> JsonValue {
@@ -106,7 +120,7 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
 
     let unit = Arc::new(OnnxCpuFlowUnit::load(model_path)?);
     let mut runtime = Runtime::default();
-    runtime.registry_mut().register(Arc::clone(&unit))?;
+    runtime.registry_mut().register(unit.clone())?;
     let spec: GraphSpec = serde_json::from_str(ONNX_GRAPH)?;
     let plan = runtime.compile(&spec)?;
 
@@ -138,7 +152,8 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
             let (g_ns, g_tensor) = graph(&runtime, &plan, input.clone())?;
             (g_ns, g_tensor, d_ns, d_tensor)
         };
-        max_output_difference = max_output_difference.max(numerical_difference(&graph_tensor, &direct_tensor)?);
+        max_output_difference =
+            max_output_difference.max(numerical_difference(&graph_tensor, &direct_tensor)?);
         graph_ns.push(graph_time);
         direct_ns.push(direct_time);
         paired_delta_ns.push(graph_time as i128 - direct_time as i128);
@@ -201,8 +216,8 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use modelbox_core::TensorF32;
     use super::{count, numerical_difference, statistics};
+    use modelbox_core::TensorF32;
 
     #[test]
     fn rejects_invalid_rounds_and_warmups() {
@@ -222,9 +237,9 @@ mod tests {
 
     #[test]
     fn checks_numerical_equality_and_drift() {
-        let a = TensorF32::new(vec![1,1], vec![0.5]).unwrap();
-        let b = TensorF32::new(vec![1,1], vec![0.50001]).unwrap();
-        let c = TensorF32::new(vec![1,1], vec![0.55]).unwrap();
+        let a = TensorF32::new(vec![1, 1], vec![0.5]).unwrap();
+        let b = TensorF32::new(vec![1, 1], vec![0.50001]).unwrap();
+        let c = TensorF32::new(vec![1, 1], vec![0.55]).unwrap();
         assert!(numerical_difference(&a, &b).is_ok());
         assert!(numerical_difference(&a, &c).is_err());
     }
