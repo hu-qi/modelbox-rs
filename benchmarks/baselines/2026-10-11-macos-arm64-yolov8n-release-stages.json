@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-provided Apple Silicon Mac mini local CLI output (cargo run --release), supplied in chat; user hardware chip model not independently identified",
+  "git_source_branch": "main",
+  "benchmark": "yolov8n_sequential_file_to_detection_cpu_stages",
+  "profile": "release",
+  "model_path": "benchmarks/datasets/detection/yolov8n.onnx",
+  "model_sha256": "190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d",
+  "image_path": "benchmarks/datasets/detection/bus.jpg",
+  "image_git_blob_sha1": "40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe",
+  "model_shape": [
+    1,
+    3,
+    640,
+    640
+  ],
+  "output_shape": [
+    1,
+    84,
+    8400
+  ],
+  "warmup_iterations": 5,
+  "measured_iterations": 30,
+  "thresholds": {
+    "confidence": 0.25,
+    "iou": 0.45,
+    "max_detections": 300
+  },
+  "latency_ms": {
+    "decode_file_and_rgb": {
+      "min": 4.372334,
+      "mean": 4.4716569,
+      "p50": 4.4655,
+      "p95": 4.577583,
+      "max": 4.646625
+    },
+    "letterbox_and_chw": {
+      "min": 4.0945,
+      "mean": 4.1538084,
+      "p50": 4.147084,
+      "p95": 4.234042,
+      "max": 4.372375
+    },
+    "graph_including_onnx_cpu": {
+      "min": 19.037208,
+      "mean": 19.808558266666665,
+      "p50": 19.657542,
+      "p95": 20.963459,
+      "max": 21.256708
+    },
+    "nms_and_project_boxes": {
+      "min": 0.453292,
+      "mean": 0.48681379999999996,
+      "p50": 0.486083,
+      "p95": 0.509,
+      "max": 0.538666
+    },
+    "end_to_end": {
+      "min": 28.092834,
+      "mean": 28.920837366666667,
+      "p50": 28.68,
+      "p95": 30.320666,
+      "max": 30.416875
+    }
+  },
+  "max_stage_total_reconciliation_delta_ns": 0,
+  "mean_stage_sum_ms": 28.920837366666667,
+  "estimated_sequential_images_per_second_from_mean": 34.57714544436295,
+  "file_read_and_decode_included": true,
+  "onnx_session_and_graph_compile_excluded": true,
+  "worker_spawn_and_graph_transport_included": true,
+  "last_detection_count": 5,
+  "last_detection_numeric_fingerprint": 9498.732394576073,
+  "stage_share_of_mean_pct": {
+    "decode_file_and_rgb": 15.461713100858914,
+    "letterbox_and_chw": 14.362683719481653,
+    "graph_including_onnx_cpu": 68.49234002296713,
+    "nms_and_project_boxes": 1.6832631566923013
+  },
+  "limitations": [
+    "One local Mac mini sequential file-to-image-to-detections release benchmark; not sustained real video-stream frames/sec.",
+    "Same image repeatedly, OS file-cache effects included; session and graph compile excluded.",
+    "Graph ONNX stage also includes Rust Graph worker and transport; cannot attribute all 19.81 ms to ONNX kernels.",
+    "Only 30 measured iterations and 5 warmups; power/temperature/processor variant not specified.",
+    "Inter-stage percentiles are separately computed and are not additive.",
+    "External YOLO model weights have AGPL-3.0 obligations."
+  ]
+}
