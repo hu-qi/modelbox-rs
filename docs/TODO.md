@@ -7,6 +7,7 @@
 ## P0 — 立即推进：真实 Mac mini 性能归因（下一窗口第一轮）
 
 - [ ] **P0-01｜采集同尺寸、无模型的 Graph 传输 Release 基准**
+  - **推荐采集器（新增）**：在真实 Apple Silicon Mac mini 上先运行 `git pull origin main`、`bash scripts/fetch-yolov8n-demo.sh`，然后执行 `python3 scripts/capture-yolov8-transport-macos.py --environment "实际电源与系统负载情况"`。该命令亲自执行原有 21/5 Release 控制实验、检查 21 组数据/Buffer/形状等不变量、记录可获得的系统与 Rust/git 信息，写入按本地测量日期命名的归档；拒绝覆盖已有基线。若原始测量未在此 Mac 执行，**不能**勾选 P0-01。测试脚本的模拟数值不是实测结果。
   - 在已更新的 Mac mini 上运行：
     ```bash
     git pull origin main
