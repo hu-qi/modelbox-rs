@@ -137,8 +137,8 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
         total_ns.iter().map(|&ns| ns as f64).sum::<f64>() / iterations as f64 / 1_000_000.0;
     let mean_stage_sum_ms = [&decode_ns, &preprocess_ns, &graph_ns, &postprocess_ns]
         .iter()
-    .map(|stage| stage.iter().map(|&ns| ns as f64).sum::<f64>())
-    .sum::<f64>()
+        .map(|stage| stage.iter().map(|&ns| ns as f64).sum::<f64>())
+        .sum::<f64>()
         / iterations as f64
         / 1_000_000.0;
 
