@@ -57,6 +57,10 @@ Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supporte
 fn main() {
     if let Err(error) = execute() {
         eprintln!("modelbox: {error}");
+        eprintln!(
+            "MODELBOX_ERROR_JSON:{}",
+            serde_json::json!({"message": error.to_string(), "node_id": error.node_id()})
+        );
         std::process::exit(1);
     }
 }
