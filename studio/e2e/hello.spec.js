@@ -51,3 +51,20 @@ test('profiled node metrics come from real Rust Runtime', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Graph name' }).fill('modified');
   await expect(page.locator('.execution-state')).toHaveCount(0);
 });
+
+test('structured Runtime failure selects node and stale annotation clears on graph change', async ({ page }) => {
+  await page.route('**/api/run', async route => {
+    await route.fulfill({status:422,contentType:'application/json',body:JSON.stringify({
+      error:'execution error at node upper: deliberate failure',node_id:'upper'
+    })});
+  });
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.getByRole('button',{name:'执行 Graph'}).click();
+  await expect(page.getByLabel('故障节点详情')).toContainText('upper');
+  await page.getByRole('button',{name:'选择故障节点'}).click();
+  await expect(page.locator('.react-flow__node.selected')).toContainText('text.uppercase');
+  await page.getByRole('textbox',{name:'Graph name'}).fill('changed');
+  await expect(page.getByLabel('故障节点详情')).toHaveCount(0);
+  await expect(page.locator('.unit-failed')).toHaveCount(0);
+});
