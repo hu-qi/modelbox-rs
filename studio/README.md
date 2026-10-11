@@ -42,3 +42,7 @@ The bridge launches only fixed cargo CLI commands, no shell string evaluation. U
 ## Acceptance
 
 CI builds the frontend and unit-tests bridge fixed-argument behavior. Manual acceptance: import `examples/hello.json`, validate, run, edit prefix, save, reload, and compare Rust output. This tracks S0-03 initial integration; complete MVP acceptance must be checked on a real browser as well.
+
+## Run diagnostics (initial)
+
+The run panel displays actual CLI output, errors, and a measured `bridge_cli_wall_time` in milliseconds. This interval includes Rust CLI process startup and may include a cold Cargo compilation; **it is not a FlowUnit timing, pure Graph scheduler overhead, or model inference latency**. Runtime traces and per-node timing remain future work.
