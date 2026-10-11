@@ -1,0 +1,51 @@
+"""Studio bridge contract tests: mock subprocess; never execute cargo here."""
+import importlib.util
+import json
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import TestCase
+from unittest.mock import patch
+
+SCRIPT = Path(__file__).resolve().parents[1] / "studio_bridge.py"
+spec = importlib.util.spec_from_file_location("studio_bridge", SCRIPT)
+bridge = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bridge)
+
+
+class StudioBridgeTests(TestCase):
+    def test_missing_graph_is_rejected(self):
+        status, body = bridge.invoke("run", {})
+        self.assertEqual(status, 400)
+        self.assertIn("graph", body["error"])
+
+    def test_oversize_input_is_rejected(self):
+        status, _ = bridge.invoke("run", {"graph": {}, "input": "a" * 4097})
+        self.assertEqual(status, 400)
+
+    def test_unknown_action_is_rejected(self):
+        self.assertEqual(bridge.invoke("shell", {})[0], 404)
+
+    def test_catalog_decodes_cli_result(self):
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=0, stdout='[{"name":"core.input"}]', stderr="")) as mock:
+            code, body = bridge.invoke("catalog", {})
+        self.assertEqual(code, 200)
+        self.assertEqual(body[0]["name"], "core.input")
+        mock.assert_called_once_with("catalog", "--json")
+
+    def test_run_uses_temporary_graph_and_fixed_args(self):
+        graph = {"name": "hi", "nodes": [], "edges": []}
+        def fake_cargo(*args):
+            self.assertEqual(args[0], "run")
+            self.assertEqual(json.loads(Path(args[1]).read_text()), graph)
+            self.assertEqual(args[2], "hello")
+            return SimpleNamespace(returncode=0, stdout='{"outputs":{},"input_count":1}', stderr="")
+        with patch.object(bridge, "cargo", side_effect=fake_cargo):
+            code, data = bridge.invoke("run", {"graph": graph, "input": "hello"})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["input_count"], 1)
+
+    def test_cli_failure_is_reported_without_success_claim(self):
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=1, stdout="", stderr="invalid graph")):
+            code, data = bridge.invoke("validate", {"graph": {"name": "invalid"}})
+        self.assertEqual(code, 422)
+        self.assertIn("invalid graph", data["error"])
