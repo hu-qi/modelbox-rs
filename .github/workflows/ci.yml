@@ -72,6 +72,13 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
       - name: Labeled MNIST CSV parser tests
         run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
+      - name: MNIST IDX parser unit tests
+        run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
+      - name: Download verified official MNIST test images and labels
+        shell: bash
+        run: bash scripts/fetch-mnist-test.sh
+      - name: Evaluate all 10,000 MNIST test images
+        run: cargo run -p modelbox-cli --features onnx -- eval-mnist-idx examples/mnist.onnx benchmarks/datasets/mnist/t10k-images-idx3-ubyte benchmarks/datasets/mnist/t10k-labels-idx1-ubyte
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1
       - name: Bench unit tests
@@ -113,5 +120,12 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
       - name: Labeled MNIST CSV parser tests
         run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
+      - name: MNIST IDX parser unit tests
+        run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
+      - name: Download verified official MNIST test images and labels
+        shell: bash
+        run: bash scripts/fetch-mnist-test.sh
+      - name: Evaluate all 10,000 MNIST test images
+        run: cargo run -p modelbox-cli --features onnx -- eval-mnist-idx examples/mnist.onnx benchmarks/datasets/mnist/t10k-images-idx3-ubyte benchmarks/datasets/mnist/t10k-labels-idx1-ubyte
       - name: Paired comparison smoke test
         run: cargo run -p modelbox-cli --features onnx -- bench-compare examples/relu.onnx examples/relu-input.json 16 3 1

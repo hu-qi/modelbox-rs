@@ -11,6 +11,8 @@ mod bench_compare;
 #[cfg(feature = "onnx")]
 mod mnist_eval;
 #[cfg(feature = "onnx")]
+mod mnist_idx;
+#[cfg(feature = "onnx")]
 mod mnist_png;
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
@@ -26,6 +28,7 @@ fn usage() -> &'static str {
   modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
   modelbox infer-mnist-png <model.onnx> <28x28-grayscale.png>   (requires --features onnx)
   modelbox eval-mnist-csv <model.onnx> <labeled-test.csv> [min_correct]   (requires --features onnx)
+  modelbox eval-mnist-idx <model.onnx> <images.idx3-ubyte> <labels.idx1-ubyte> [min_correct]   (requires --features onnx)
   modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
@@ -82,6 +85,8 @@ fn execute() -> Result<(), FlowError> {
         "infer-mnist-png" => mnist_png::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "eval-mnist-csv" => mnist_eval::run(args.collect())?,
+        #[cfg(feature = "onnx")]
+        "eval-mnist-idx" => mnist_idx::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "infer" => {
             use std::sync::Arc;
