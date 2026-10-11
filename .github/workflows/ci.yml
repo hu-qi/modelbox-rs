@@ -84,7 +84,7 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 0.25 0.45 > yolo-detections.json
           python3 scripts/verify-yolov8n-demo.py yolo-detections.json
-          python3 -m unittest discover -s scripts/tests -p 'test_verify_yolov8n_demo.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: YOLOv8n stage benchmark functional smoke
         shell: bash
         run: |
@@ -163,7 +163,7 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 0.25 0.45 > yolo-detections.json
           python3 scripts/verify-yolov8n-demo.py yolo-detections.json
-          python3 -m unittest discover -s scripts/tests -p 'test_verify_yolov8n_demo.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: YOLOv8n stage benchmark functional smoke
         shell: bash
         run: |
