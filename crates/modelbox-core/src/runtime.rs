@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{bounded, Receiver, RecvTimeoutError, SendTimeoutError, Sender};
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,22 @@ struct Frame {
 
 type Captures = Arc<Mutex<BTreeMap<String, Vec<Frame>>>>;
 type FirstError = Arc<Mutex<Option<FlowError>>>;
+type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
+
+/// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
+/// are not additive and do not represent graph end-to-end latency.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct NodeProfile {
+    pub calls: usize,
+    pub process_ns: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProfiledRun {
+    pub result: RunResult,
+    pub node_process: BTreeMap<String, NodeProfile>,
+}
+
 
 fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError) {
     let mut guard = errors.lock().expect("error mutex poisoned");
@@ -151,6 +167,7 @@ struct Worker {
     source_values: Option<Vec<Value>>,
     captures: Captures,
     cancelled: Arc<AtomicBool>,
+    profile: Option<ProfileStore>,
 }
 
 impl Worker {
@@ -200,7 +217,16 @@ impl Worker {
                     }
                 }
             }
-            let output = self.unit.process_owned(values, &self.config)?;
+            let start = self.profile.as_ref().map(|_| Instant::now());
+            let processed = self.unit.process_owned(values, &self.config);
+            if let (Some(profile), Some(start)) = (&self.profile, start) {
+                let elapsed = start.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                let mut entries = profile.lock().expect("profile mutex poisoned");
+                let sample = entries.entry(self.node_id.clone()).or_default();
+                sample.calls += 1;
+                sample.process_ns = sample.process_ns.saturating_add(elapsed);
+            }
+            let output = processed?;
             dispatch(
                 &self.node_id,
                 self.unit.as_ref(),
@@ -241,7 +267,21 @@ impl Runtime {
         self.run_plan(&plan, values)
     }
 
+    /// Opt-in FlowUnit process timing. Does not include input waits, dispatch,
+    /// source forwarding, thread setup, or scheduling overhead.
+    pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
+        let plan = self.compile(spec)?;
+        let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
+        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)))?;
+        let node_process = store.lock().expect("profile mutex poisoned").clone();
+        Ok(ProfiledRun { result, node_process })
+    }
+
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
+        self.run_plan_inner(plan, values, None)
+    }
+
+    fn run_plan_inner(&self, plan: &ExecutionPlan, values: Vec<Value>, profile: Option<ProfileStore>) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
             if value.data_type() != expected {
@@ -301,6 +341,7 @@ impl Runtime {
                     },
                     captures: Arc::clone(&captures),
                     cancelled: Arc::clone(&cancelled),
+                    profile: profile.clone(),
                 };
                 let worker_errors = Arc::clone(&errors);
                 let worker_cancelled = Arc::clone(&cancelled);
