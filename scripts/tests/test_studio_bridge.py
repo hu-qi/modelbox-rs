@@ -42,10 +42,13 @@ class StudioBridgeTests(TestCase):
         with patch.object(bridge, "cargo", side_effect=fake_cargo):
             code, data = bridge.invoke("run", {"graph": graph, "input": "hello"})
         self.assertEqual(code, 200)
-        self.assertEqual(data["input_count"], 1)
+        self.assertEqual(data["result"]["input_count"], 1)
+        self.assertEqual(data["diagnostics"]["scope"], "bridge_cli_wall_time")
+        self.assertGreaterEqual(data["diagnostics"]["elapsed_ms"], 0)
 
     def test_cli_failure_is_reported_without_success_claim(self):
         with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=1, stdout="", stderr="invalid graph")):
             code, data = bridge.invoke("validate", {"graph": {"name": "invalid"}})
         self.assertEqual(code, 422)
         self.assertIn("invalid graph", data["error"])
+        self.assertEqual(data["diagnostics"]["scope"], "bridge_cli_wall_time")
