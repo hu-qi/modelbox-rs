@@ -104,7 +104,7 @@ jobs:
         run: |
           cargo run -p modelbox-cli --features onnx -- bench-transport-yolov8 \
             benchmarks/datasets/detection/bus.jpg 3 1 > yolo-transport.json
-          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
+          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert x["graph_tensor_buffer_reused"] and x["direct_tensor_buffer_reused"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
@@ -183,7 +183,7 @@ jobs:
         run: |
           cargo run -p modelbox-cli --features onnx -- bench-transport-yolov8 \
             benchmarks/datasets/detection/bus.jpg 3 1 > yolo-transport.json
-          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
+          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert x["graph_tensor_buffer_reused"] and x["direct_tensor_buffer_reused"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
