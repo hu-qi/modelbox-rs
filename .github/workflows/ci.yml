@@ -28,6 +28,7 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run build
+          npm test
       - name: Local bridge contract tests
         run: python3 -m unittest discover -s scripts/tests -p 'test_studio_bridge.py'
 
