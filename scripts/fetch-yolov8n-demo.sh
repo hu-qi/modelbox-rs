@@ -14,7 +14,7 @@ verify_model() {
   printf '%s  %s\n' "${MODEL_SHA256}" "${MODEL}" | shasum -a 256 -c - >/dev/null 2>&1
 }
 verify_image() {
-  [[ "$(git hash-object "${IMAGE}")" == "${IMAGE_GIT_BLOB}" ]]
+  [[ -f "${IMAGE}" ]] && [[ "$(git hash-object "${IMAGE}")" == "${IMAGE_GIT_BLOB}" ]]
 }
 download() {
   local url="$1" dest="$2"
