@@ -117,6 +117,16 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
     for turn in 0..(warmup + rounds) {
         let graph_input = Value::TensorF32(input.clone());
         let direct_input = Value::TensorF32(input.clone());
+        // These allocations are created before either timed interval. Verify
+        // that the single-consumer Graph forwards them without a hidden copy.
+        let graph_buffer = match &graph_input {
+            Value::TensorF32(tensor) => tensor.data().as_ptr(),
+            _ => unreachable!("prepared Graph input is a tensor"),
+        };
+        let direct_buffer = match &direct_input {
+            Value::TensorF32(tensor) => tensor.data().as_ptr(),
+            _ => unreachable!("prepared direct input is a tensor"),
+        };
 
         let run_graph = || -> Result<(u128, TensorF32)> {
             let start = Instant::now();
@@ -147,6 +157,12 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
         if g_tensor != input || d_tensor != input {
             return Err(invalid("identity transfer altered the input tensor"));
         }
+        if !std::ptr::eq(g_tensor.data().as_ptr(), graph_buffer) {
+            return Err(invalid("Graph unexpectedly copied the single-consumer input tensor"));
+        }
+        if !std::ptr::eq(d_tensor.data().as_ptr(), direct_buffer) {
+            return Err(invalid("direct owned identity unexpectedly copied the input tensor"));
+        }
         checksum = g_tensor.data().iter().map(|&v| f64::from(v)).sum();
         if turn >= warmup {
             graph_ns.push(g_ns);
@@ -168,6 +184,8 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
             "direct_owned_identity_ms": stats(&direct_ns),
             "paired_graph_minus_direct_ms": pair_delta_ms,
             "output_matches_input_exactly": true,
+            "graph_tensor_buffer_reused": true,
+            "direct_tensor_buffer_reused": true,
             "last_input_output_checksum": checksum,
             "preprocessing_and_input_clones_outside_timed_intervals": true,
             "onnx_model_loaded": false,
@@ -181,7 +199,9 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{count, stats, OwnedIdentity};
-    use modelbox_core::{FlowUnit, TensorF32, Value};
+    use crate::bench::IDENTITY_GRAPH;
+    use modelbox_core::{FlowUnit, GraphSpec, Runtime, TensorF32, Value};
+    use std::sync::Arc;
     use serde_json::Value as JsonValue;
 
     #[test]
@@ -197,6 +217,26 @@ mod tests {
         let summary = stats(&[1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000]);
         assert_eq!(summary["p50"], 3.0);
         assert_eq!(summary["p95"], 5.0);
+    }
+
+    #[test]
+    fn owned_graph_round_trip_reuses_the_original_allocation() {
+        let mut runtime = Runtime::default();
+        runtime.registry_mut().register(Arc::new(OwnedIdentity)).unwrap();
+        let graph: GraphSpec = serde_json::from_str(IDENTITY_GRAPH).unwrap();
+        let plan = runtime.compile(&graph).unwrap();
+
+        let source = TensorF32::new(vec![1, 2], vec![1.0, 2.0]).unwrap();
+        let original_ptr = source.data().as_ptr();
+        let result = runtime.run_plan(&plan, vec![Value::TensorF32(source)]).unwrap();
+        let values = result.outputs.get("result.out").unwrap();
+        match values.as_slice() {
+            [Value::TensorF32(tensor)] => {
+                assert_eq!(tensor.data(), &[1.0, 2.0]);
+                assert!(std::ptr::eq(tensor.data().as_ptr(), original_ptr));
+            }
+            _ => panic!("expected one tensor"),
+        }
     }
 
     #[test]
