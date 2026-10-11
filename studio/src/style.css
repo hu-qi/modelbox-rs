@@ -4,3 +4,6 @@
 .execution-state.processed{background:#144d40;color:#d6fff0}
 .execution-state.source{background:#324355;color:#dbe9fa}
 .execution-state.unobserved{background:#5a4b29;color:#ffe6b4}
+
+.unit.unit-failed{border-color:#fb7185;box-shadow:0 0 0 2px #fb718544}
+.execution-state.failed{background:#6c2238;color:#ffe1e7}
