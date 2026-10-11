@@ -30,7 +30,7 @@
 - [x] Trained MNIST CNN f32 classification model and graph-vs-direct shape/numeric integration smoke tests (no accuracy claim).
 - [x] Strict grayscale PNG file-to-MNIST CPU classification CLI and user-observed logit regression.
 - [x] Small independent-label MNIST test subset (10 rows) and inference/evaluation CLI with per-example predictions/confusion matrix (Linux and macOS ARM64 each observed 10/10; gated as fixed regression).
-- [ ] Full official 10,000-image MNIST IDX test-set accuracy baseline (loader, checksummed download and cross-OS CI implemented; record observed results before completing).
+- [x] Complete official 10,000-image MNIST IDX test accuracy baseline on Linux x86_64 and native macOS ARM64: 9,890/10,000 = 98.90%, identical confusion matrices; CI gate >=9,850/10,000.
 - [ ] Independent operator-level inference oracle, object-detection fixtures and representative performance baselines.
 
 
