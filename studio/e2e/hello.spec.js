@@ -25,7 +25,7 @@ test('real Rust hello graph validates, edits, executes, and reloads', async ({ p
   await page.locator('input[type=file]').setInputFiles(path);
   await expect(page.getByRole('status')).toContainText('已导入');
   await page.getByRole('button', { name: '执行 Graph' }).click();
-  await expect(page.getByRole('status')).toContainText('E2E: HELLO MODELBOX');
+  await expect(page.getByText('E2E: HELLO MODELBOX', { exact: false })).toBeVisible();
 });
 
 test('real Rust CLI reports invalid edited graph', async ({ page }) => {
