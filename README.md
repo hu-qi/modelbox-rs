@@ -4,6 +4,13 @@ Rust-first, CPU-first foundation for a typed AI dataflow runtime. ModelBox Rust 
 
 **v0.1 status:** a prototype with a working JSON Graph IR, validation, bounded concurrent dataflow processing, custom Rust FlowUnits, a CLI, and automated tests. This is **not yet** a production edge AI inference engine.
 
+## Continuation handoff / 接力入口
+
+- [Complete 2026-10-11 context snapshot](docs/NEXT-SESSION-CONTEXT.md) — current architecture, GitHub main/CI verification, actual Mac mini benchmarks, pinned model/data and restart commands.
+- [Prioritized TODO and acceptance gates](docs/TODO.md) — actionable P0–P3 checklist for the next development session. Start with collecting the actual Mac mini Release `bench-transport-yolov8` output.
+
+The handoff is a dated snapshot; verify current GitHub `main` before making changes. Performance results are explicitly separate from independent model accuracy and streaming FPS.
+
 ## Quick start
 
 Prerequisites: Rust 1.81+ (stable recommended).
