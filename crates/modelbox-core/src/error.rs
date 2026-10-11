@@ -5,8 +5,18 @@ pub enum FlowError {
     InvalidGraph(String),
     UnknownUnit(String),
     Execution(String),
+    NodeExecution { node_id: String, message: String },
     Io(std::io::Error),
     Json(serde_json::Error),
+}
+
+impl FlowError {
+    pub fn node_id(&self) -> Option<&str> {
+        match self {
+            Self::NodeExecution { node_id, .. } => Some(node_id),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for FlowError {
@@ -15,6 +25,7 @@ impl fmt::Display for FlowError {
             Self::InvalidGraph(message) => write!(f, "invalid graph: {message}"),
             Self::UnknownUnit(message) => write!(f, "unknown flow unit: {message}"),
             Self::Execution(message) => write!(f, "execution error: {message}"),
+            Self::NodeExecution { node_id, message } => write!(f, "execution error at node {node_id}: {message}"),
             Self::Io(error) => write!(f, "I/O error: {error}"),
             Self::Json(error) => write!(f, "JSON error: {error}"),
         }
