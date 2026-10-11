@@ -46,7 +46,6 @@ pub struct ProfiledRun {
     pub node_process: BTreeMap<String, NodeProfile>,
 }
 
-
 fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError) {
     let mut guard = errors.lock().expect("error mutex poisoned");
     if guard.is_none() {
@@ -274,7 +273,10 @@ impl Runtime {
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
         let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)))?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
-        Ok(ProfiledRun { result, node_process })
+        Ok(ProfiledRun {
+            result,
+            node_process,
+        })
     }
 
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
