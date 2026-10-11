@@ -100,7 +100,7 @@ fn invalid(message: impl std::fmt::Display) -> FlowError {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Letterbox {
+pub(crate) struct Letterbox {
     source_width: u32,
     source_height: u32,
     gain: f32,
@@ -110,7 +110,7 @@ struct Letterbox {
     scaled_height: u32,
 }
 
-fn letterbox(rgb: &RgbImage) -> modelbox_core::Result<(TensorF32, Letterbox)> {
+pub(crate) fn letterbox(rgb: &RgbImage) -> modelbox_core::Result<(TensorF32, Letterbox)> {
     let (w, h) = rgb.dimensions();
     if w == 0 || h == 0 || w > 8192 || h > 8192 {
         return Err(invalid("source image dimensions must be 1..=8192"));
@@ -145,7 +145,7 @@ fn letterbox(rgb: &RgbImage) -> modelbox_core::Result<(TensorF32, Letterbox)> {
     ))
 }
 
-fn project_xyxy(coords: [f32; 4], geometry: Letterbox) -> [f32; 4] {
+pub(crate) fn project_xyxy(coords: [f32; 4], geometry: Letterbox) -> [f32; 4] {
     let x1 = ((coords[0] - geometry.pad_left as f32) / geometry.gain)
         .clamp(0.0, geometry.source_width as f32);
     let y1 = ((coords[1] - geometry.pad_top as f32) / geometry.gain)

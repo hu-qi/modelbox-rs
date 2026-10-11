@@ -214,3 +214,16 @@ On Linux and Apple Silicon, CI compares actual detections with the observed base
 # After running the command in the YOLO demo, redirect its output to yolo-detections.json.
 python3 scripts/verify-yolov8n-demo.py yolo-detections.json
 ```
+
+### YOLOv8n measured Release latency by pipeline stage
+
+The `bench-detect-yolov8` command runs repeated **sequential** single-photo requests using the same ONNX session and compiled Graph. It measures four consecutive, non-overlapping stages within each request: disk file read/JPEG decode/RGB conversion; Letterbox resize, padding and CHW tensor; Graph dispatch plus ONNX CPU inference; NMS plus projection to original-image coordinates.
+
+```bash
+bash scripts/fetch-yolov8n-demo.sh
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-detect-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 30 5
+```
+
+Output includes each stage's min, p50, p95, max and mean milliseconds, **total end-to-end** timings, observed detection count, a numeric detection fingerprint, and a per-request stage-versus-total timestamp reconciliation check. Defaults: 20 measured iterations and 5 warmups; allowed 1–200 iterations and 0–100 warmups. The first model/session load and Graph compilation are excluded. **Each independent p50/p95 cannot be summed to infer total p50/p95.** These numbers describe repeated sequential requests on the same OS cache, not steady-state video FPS or GPU/NPU performance. The CI run is only a debug-build functional smoke and must not be used as the Mac mini Release performance baseline.
