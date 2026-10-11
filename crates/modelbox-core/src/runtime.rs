@@ -281,7 +281,12 @@ impl Runtime {
         self.run_plan_inner(plan, values, None)
     }
 
-    fn run_plan_inner(&self, plan: &ExecutionPlan, values: Vec<Value>, profile: Option<ProfileStore>) -> Result<RunResult> {
+    fn run_plan_inner(
+        &self,
+        plan: &ExecutionPlan,
+        values: Vec<Value>,
+        profile: Option<ProfileStore>,
+    ) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
             if value.data_type() != expected {
