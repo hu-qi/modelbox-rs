@@ -13,18 +13,86 @@ use crate::yolo_post;
 const SIDE: u32 = 640;
 const PIXELS: usize = (SIDE as usize) * (SIDE as usize);
 const COCO80: [&str; 80] = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
-    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
-    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
-    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
-    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
-    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-    "hair drier", "toothbrush",
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
 ];
 
 fn invalid(message: impl std::fmt::Display) -> FlowError {
@@ -55,12 +123,7 @@ fn letterbox(rgb: &RgbImage) -> modelbox_core::Result<(TensorF32, Letterbox)> {
 
     // For an approximate Ultralytics/cv2 INTER_LINEAR preprocessing match,
     // resize with triangular filtering and preserve centered 114 RGB padding.
-    let resized = image::imageops::resize(
-        rgb,
-        scaled_width,
-        scaled_height,
-        FilterType::Triangle,
-    );
+    let resized = image::imageops::resize(rgb, scaled_width, scaled_height, FilterType::Triangle);
     let mut chw = vec![114.0_f32 / 255.0; 3 * PIXELS];
     for (x, y, pixel) in resized.enumerate_pixels() {
         let offset = (y + pad_top) as usize * SIDE as usize + (x + pad_left) as usize;
@@ -100,7 +163,9 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
     }
     let optional_threshold = |index: usize, default: f32| -> modelbox_core::Result<f32> {
         match args.get(index) {
-            Some(s) => s.parse().map_err(|_| invalid("invalid confidence / IoU value")),
+            Some(s) => s
+                .parse()
+                .map_err(|_| invalid("invalid confidence / IoU value")),
             None => Ok(default),
         }
     };
@@ -205,7 +270,13 @@ mod tests {
             scaled_width: 640,
             scaled_height: 320,
         };
-        assert_eq!(project_xyxy([40.0, 180.0, 400.0, 440.0], g), [20.0, 10.0, 200.0, 140.0]);
-        assert_eq!(project_xyxy([0.0, 0.0, 640.0, 640.0], g), [0.0, 0.0, 320.0, 160.0]);
+        assert_eq!(
+            project_xyxy([40.0, 180.0, 400.0, 440.0], g),
+            [20.0, 10.0, 200.0, 140.0]
+        );
+        assert_eq!(
+            project_xyxy([0.0, 0.0, 640.0, 640.0], g),
+            [0.0, 0.0, 320.0, 160.0]
+        );
     }
 }
