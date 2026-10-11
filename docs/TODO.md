@@ -4,6 +4,16 @@
 > 项目：<https://github.com/hu-qi/modelbox-rs>。完整背景与复现指令参见 [NEXT-SESSION-CONTEXT.md](NEXT-SESSION-CONTEXT.md)。  
 > **规则**：`[x]` 表示有明确的代码/CI/本机证据；`[ ]` 表示尚未验收。未测出的性能、精度和硬件能力一律不得声称已实现。清单按依赖顺序排列，不代表承诺交付日期。
 
+## P0-Studio — ModelBox 复兴的并行主线（v0.2 即启动）
+
+- [ ] **S0-01｜Studio ↔ Rust GraphSpec 契约**：编辑节点/连线/参数时，输出必须严格符合当前 `GraphSpec {name, queue_capacity, nodes, edges}`；画布坐标独立保存，不向运行配置注入 UI 字段；使用 `examples/hello.json` 的真实端到端验证作为第一道门槛。
+- [ ] **S0-02｜FlowUnit 元数据发现**：从 Rust registry 提供节点名称、输入输出端口与类型、配置约束供编辑器消费，避免前端写死不可信端口。
+- [ ] **S0-03｜最小可运行 Studio**：拖放、连线、节点配置、类型检验、导入导出、调用 Rust 验证/执行、真实输出和错误显示；不接受仅静态流程图。
+- [ ] **S0-04｜原 ModelBox 迁移评估**：梳理 WebUI、DOT/TOML、FlowUnit、device 配置差异，先做带明确 unsupported 报告的只读导入，不假装 ABI 兼容。
+- [ ] **S0-05｜进阶能力**：真实流式图预览、性能 Trace、子图、插件包、AI 编排、边缘部署要与后续 Runtime 能力逐步闭环。
+
+并行推进原则：P0-01 Mac mini 本机 Release 性能验证仍保留；Studio 工作不依赖这些性能数据，可独立 PR/CI 验证。
+
 ## P0 — 立即推进：真实 Mac mini 性能归因（下一窗口第一轮）
 
 - [ ] **P0-01｜采集同尺寸、无模型的 Graph 传输 Release 基准**
