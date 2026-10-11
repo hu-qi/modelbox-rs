@@ -52,3 +52,14 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(code, 422)
         self.assertIn("invalid graph", data["error"])
         self.assertEqual(data["diagnostics"]["scope"], "bridge_cli_wall_time")
+
+    def test_profiled_run_preserves_outputs_and_per_node_counts(self):
+        graph = {"name": "hi", "nodes": [], "edges": []}
+        output = '{"result":{"outputs":{},"input_count":1},"node_process":{"upper":{"calls":1,"process_ns":1500}}}'
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=0, stdout=output, stderr="")) as mock:
+            code, data = bridge.invoke("run-profile", {"graph": graph, "input": "hello"})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["result"]["input_count"], 1)
+        self.assertEqual(data["node_process"]["upper"]["calls"], 1)
+        mock.assert_called_once()
+        self.assertEqual(mock.call_args.args[0], "run-profile")

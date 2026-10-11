@@ -24,7 +24,7 @@ def invoke(action, payload):
     started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
-    elif action in ("validate", "run"):
+    elif action in ("validate", "run", "run-profile"):
         graph = payload.get("graph")
         if not isinstance(graph, dict):
             return 400, {"error": "graph must be an object"}
@@ -32,11 +32,11 @@ def invoke(action, payload):
         with tempfile.TemporaryDirectory(prefix="modelbox-studio-") as temp:
             path = pathlib.Path(temp) / "graph.json"
             path.write_text(json.dumps(graph), encoding="utf-8")
-            if action == "run":
+            if action in ("run", "run-profile"):
                 value = payload.get("input")
                 if not isinstance(value, str) or len(value) > 4096:
                     return 400, {"error": "input must be a text string of at most 4096 characters"}
-                result = cargo("run", str(path), value)
+                result = cargo(action, str(path), value)
             else:
                 result = cargo("validate", str(path))
     else:
@@ -50,8 +50,10 @@ def invoke(action, payload):
         return 422, {"error": (result.stderr or result.stdout)[-4096:], "diagnostics": diagnostics}
     if action == "catalog":
         return 200, json.loads(result.stdout)
-    if action == "run":
+    if action in ("run", "run-profile"):
         output = json.loads(result.stdout)
+        if action == "run-profile":
+            return 200, {"result": output["result"], "node_process": output["node_process"], "diagnostics": diagnostics}
         return 200, {"result": output, "diagnostics": diagnostics}
     return 200, {"message": result.stdout.strip(), "diagnostics": diagnostics}
 
@@ -82,7 +84,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
