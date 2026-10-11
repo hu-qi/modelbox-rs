@@ -14,7 +14,7 @@ const example = {
 function download(name,obj){const blob=new Blob([JSON.stringify(obj,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 function UnitNode({id,data}){
   const d=data.descriptor;
-  return <div className="unit"><strong>{id}</strong><small>{data.unit}</small>{data.execution&&<div className={"execution-state "+data.execution.kind}>{data.execution.label}</div>}
+  return <div className={"unit"+(data.failure?" unit-failed":"")}><strong>{id}</strong><small>{data.unit}</small>{data.failure&&<div className="execution-state failed">Runtime 报告此节点执行失败</div>}{data.execution&&<div className={"execution-state "+data.execution.kind}>{data.execution.label}</div>}
     {(d?.inputs||[]).map(p=><div className="port in" key={p.name}><Handle type="target" position={Position.Left} id={p.name} style={{top:55+(d.inputs.indexOf(p))*24}}/>{p.name} · {p.data_type}</div>)}
     {(d?.outputs||[]).map(p=><div className="port out" key={p.name}><Handle type="source" position={Position.Right} id={p.name} style={{top:55+(d.inputs.length+p.name.length*0)*0+(d.outputs.indexOf(p))*24}}/>{p.name} · {p.data_type}</div>)}
   </div>;
@@ -28,9 +28,10 @@ function App(){
   const [configDirty,setConfigDirty]=useState(false);
   const [lastRun,setLastRun]=useState(null);
   const [profileSnapshot,setProfileSnapshot]=useState(null);
+  const [failureSnapshot,setFailureSnapshot]=useState(null);
   useEffect(()=>{fetch('/api/catalog').then(r=>r.json()).then(d=>{if(!Array.isArray(d))throw Error(d.error||'invalid catalog');setCatalog(d);setStatus('Rust FlowUnit Registry 已连接');}).catch(e=>setStatus('连接失败：'+e.message));},[]);
   const descriptors=useMemo(()=>Object.fromEntries(catalog.map(x=>[x.name,x])),[catalog]);
-  const flowNodes=useMemo(()=>nodes.map(n=>({...n,data:{...n.data,descriptor:descriptors[n.data.unit],execution:nodeExecutionState(n.id,n.data.unit,profileSnapshot?.profile,profileSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity)))}})),[nodes,edges,name,capacity,descriptors,profileSnapshot]);
+  const flowNodes=useMemo(()=>nodes.map(n=>({...n,data:{...n.data,descriptor:descriptors[n.data.unit],execution:nodeExecutionState(n.id,n.data.unit,profileSnapshot?.profile,profileSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))),failure:failureSnapshot?.nodeId===n.id && failureSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))}})),[nodes,edges,name,capacity,descriptors,profileSnapshot,failureSnapshot]);
   const onConnect=useCallback(c=>{
     const problem=connectionError(c,nodes,edges,descriptors);
     if(problem){setStatus(problem);return;}
@@ -44,10 +45,12 @@ function App(){
     setBusy(true);
     setLastRun(null);
     setProfileSnapshot(null);
+    setFailureSnapshot(null);
     try {
       const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({graph:spec(),input})});
       const data=await response.json();
       setLastRun({action,ok:response.ok,diagnostics:data.diagnostics??null,result:data.result??null,node_process:data.node_process??null,error:data.error??null,message:data.message??null});
+      if(!response.ok && typeof data.node_id==='string') setFailureSnapshot({nodeId:data.node_id,graph:JSON.stringify(spec())});
       if(response.ok && action==='run-profile' && data.node_process) setProfileSnapshot({graph:JSON.stringify(spec()),profile:data.node_process});
       setStatus(response.ok ? action==='run' ? '执行成功' : '校验成功' : '执行/校验失败');
     } catch(e) {
