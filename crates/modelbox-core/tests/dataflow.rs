@@ -265,3 +265,19 @@ fn output_is_stable_across_multiple_runs() {
         );
     }
 }
+
+#[test]
+fn profiled_run_preserves_outputs_and_counts_non_source_units() {
+    let spec = graph(HELLO);
+    let runtime = Runtime::default();
+    let baseline = runtime.run(&spec, Value::Text("hello".into())).unwrap();
+    let profiled = runtime
+        .run_many_profiled(&spec, vec![Value::Text("hello".into())])
+        .unwrap();
+    assert_eq!(profiled.result.outputs, baseline.outputs);
+    assert_eq!(profiled.result.input_count, 1);
+    assert!(!profiled.node_process.contains_key("source"));
+    for node in ["upper", "prefix", "result"] {
+        assert_eq!(profiled.node_process[node].calls, 1);
+    }
+}
