@@ -38,6 +38,8 @@ jobs:
         run: cargo test --workspace --all-targets
       - name: CLI smoke test
         run: cargo run -p modelbox-cli -- demo
+      - name: Studio FlowUnit catalog smoke
+        run: cargo run -p modelbox-cli -- catalog --json
       - name: Studio GraphSpec contract smoke
         run: |
           cargo run -p modelbox-cli -- validate examples/hello.json
