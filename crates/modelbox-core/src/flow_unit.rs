@@ -204,7 +204,6 @@ impl FlowUnit for Builtin {
     }
 }
 
- 
 /// Read-only discovery data for Studio; runtime compilation remains authoritative.
 /// A missing config schema does NOT mean that arbitrary configs are accepted.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -227,25 +226,33 @@ impl FlowRegistry {
     /// Stable ordering, based on the actual registered implementations.
     /// Custom units have no introspectable config schema in today's FlowUnit trait.
     pub fn descriptors(&self) -> Vec<FlowUnitDescriptor> {
-        let mut descriptors: Vec<_> = self.units.values().map(|unit| {
-            let ports = |defs: &[PortDef]| defs.iter().map(|p| PortDescriptor {
-                name: p.name.to_owned(),
-                data_type: p.data_type,
-            }).collect();
-            FlowUnitDescriptor {
-                name: unit.name().to_owned(),
-                is_source: unit.is_source(),
-                inputs: ports(unit.inputs()),
-                outputs: ports(unit.outputs()),
-                required_string_config_keys: if unit.name() == "text.prefix" {
-                    vec!["prefix".to_owned()]
-                } else {
-                    Vec::new()
-                },
-                // No FlowUnit can currently promise an exhaustive config contract.
-                config_schema_complete: false,
-            }
-        }).collect();
+        let mut descriptors: Vec<_> = self
+            .units
+            .values()
+            .map(|unit| {
+                let ports = |defs: &[PortDef]| {
+                    defs.iter()
+                        .map(|p| PortDescriptor {
+                            name: p.name.to_owned(),
+                            data_type: p.data_type,
+                        })
+                        .collect()
+                };
+                FlowUnitDescriptor {
+                    name: unit.name().to_owned(),
+                    is_source: unit.is_source(),
+                    inputs: ports(unit.inputs()),
+                    outputs: ports(unit.outputs()),
+                    required_string_config_keys: if unit.name() == "text.prefix" {
+                        vec!["prefix".to_owned()]
+                    } else {
+                        Vec::new()
+                    },
+                    // No FlowUnit can currently promise an exhaustive config contract.
+                    config_schema_complete: false,
+                }
+            })
+            .collect();
         descriptors.sort_by(|a, b| a.name.cmp(&b.name));
         descriptors
     }
@@ -269,7 +276,15 @@ mod studio_catalog_tests {
         assert!(tensor.is_source);
         assert_eq!(tensor.outputs[0].data_type, DataType::TensorF32);
         let encoded = serde_json::to_value(&list).unwrap();
-        assert_eq!(encoded.iter().find(|x| x["name"] == "tensor.input").unwrap()["outputs"][0]["data_type"], "tensor_f32");
+        assert_eq!(
+            encoded
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|x| x["name"] == "tensor.input")
+                .unwrap()["outputs"][0]["data_type"],
+            "tensor_f32"
+        );
     }
 
     #[test]
