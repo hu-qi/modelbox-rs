@@ -1,6 +1,8 @@
 # Roadmap and acceptance gates
 
-## v0.1 — Rust Core (this pull request)
+**Current actionable backlog and handoff:** [TODO.md](TODO.md) · [NEXT-SESSION-CONTEXT.md](NEXT-SESSION-CONTEXT.md). This high-level roadmap is not the active sprint checklist. The handoff snapshot records main at PR #24 (2026-10-11); verify later commits before continuing.
+
+## v0.1 — Rust Core (prototype implemented)
 
 - [x] Rust workspace and CPU-only Core API
 - [x] Typed node/port schema and JSON GraphSpec
@@ -10,7 +12,7 @@
 - [x] Sequence-preserving fan-out/fan-in for finite batches
 - [x] Cooperative cancellation and error propagation
 - [x] CLI, two examples, regression tests, GitHub Actions workflow
-- [ ] Confirm GitHub Actions passes all OS targets after PR creation
+- [x] Confirm GitHub Actions passes all OS targets (main 5/5 verified 2026-10-11, run 38107754576)
 - [ ] Publish first tag after review
 
 ## v0.2 — Inference foundations
