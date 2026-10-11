@@ -16,12 +16,18 @@ fn invalid(message: impl std::fmt::Display) -> FlowError {
 }
 
 fn field(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_be_bytes(bytes[offset..offset + 4].try_into().expect("validated IDX header"))
+    u32::from_be_bytes(
+        bytes[offset..offset + 4]
+            .try_into()
+            .expect("validated IDX header"),
+    )
 }
 
 fn parse_idx(images: &[u8], labels: &[u8]) -> modelbox_core::Result<Vec<Sample>> {
     if images.len() < 16 || labels.len() < 8 {
-        return Err(invalid("images require a 16-byte header and labels an 8-byte header"));
+        return Err(invalid(
+            "images require a 16-byte header and labels an 8-byte header",
+        ));
     }
     if field(images, 0) != 2051 {
         return Err(invalid("invalid image magic (expected 2051)"));
@@ -31,7 +37,9 @@ fn parse_idx(images: &[u8], labels: &[u8]) -> modelbox_core::Result<Vec<Sample>>
     }
     let count = field(images, 4) as usize;
     if count == 0 || count > MAX_SAMPLES {
-        return Err(invalid("number of test images must be between 1 and 10,000"));
+        return Err(invalid(
+            "number of test images must be between 1 and 10,000",
+        ));
     }
     if count != field(labels, 4) as usize {
         return Err(invalid("image/label counts disagree"));
@@ -59,10 +67,7 @@ fn parse_idx(images: &[u8], labels: &[u8]) -> modelbox_core::Result<Vec<Sample>>
             if digit > 9 {
                 return Err(invalid(format!("label {index} is outside 0..=9")));
             }
-            let f32_pixels = pixels
-                .iter()
-                .map(|&v| f32::from(v) / 255.0)
-                .collect();
+            let f32_pixels = pixels.iter().map(|&v| f32::from(v) / 255.0).collect();
             Ok(Sample {
                 label: digit as usize,
                 image: Value::TensorF32(TensorF32::new(vec![1, 1, 28, 28], f32_pixels)?),
@@ -79,7 +84,12 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
     let labels = fs::read(&args[2])?;
     let samples = parse_idx(&images, &labels)?;
     let minimum = mnist_eval::parse_minimum(args.get(3), samples.len())?;
-    mnist_eval::evaluate(&args[0], &format!("{} + {}", args[1], args[2]), samples, minimum)
+    mnist_eval::evaluate(
+        &args[0],
+        &format!("{} + {}", args[1], args[2]),
+        samples,
+        minimum,
+    )
 }
 
 #[cfg(test)]

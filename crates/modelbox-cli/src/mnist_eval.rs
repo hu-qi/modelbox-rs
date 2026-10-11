@@ -81,10 +81,7 @@ fn classify(value: &Value) -> modelbox_core::Result<usize> {
         .ok_or_else(|| invalid("model output is empty"))
 }
 
-pub(super) fn parse_minimum(
-    input: Option<&String>,
-    count: usize,
-) -> modelbox_core::Result<usize> {
+pub(super) fn parse_minimum(input: Option<&String>, count: usize) -> modelbox_core::Result<usize> {
     let minimum = match input {
         Some(value) => value
             .parse::<usize>()
