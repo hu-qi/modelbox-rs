@@ -68,7 +68,9 @@ fn decode(
         || !iou_threshold.is_finite()
         || !(0.0..=1.0).contains(&iou_threshold)
     {
-        return Err(invalid("confidence and IoU thresholds must be within 0..=1"));
+        return Err(invalid(
+            "confidence and IoU thresholds must be within 0..=1",
+        ));
     }
     if max_detections == 0 || max_detections > MAX_DETECTIONS {
         return Err(invalid("max_detections must be in 1..=1000"));
@@ -127,8 +129,7 @@ fn decode(
     let mut selected = Vec::new();
     for candidate in candidates {
         if selected.iter().any(|previous: &Detection| {
-            previous.class_id == candidate.class_id
-                && overlap(previous, &candidate) > iou_threshold
+            previous.class_id == candidate.class_id && overlap(previous, &candidate) > iou_threshold
         }) {
             continue;
         }
@@ -234,8 +235,8 @@ mod tests {
                 100.0, 110.0, 100.0, // center y
                 100.0, 100.0, 100.0, // width
                 100.0, 100.0, 100.0, // height
-                0.9, 0.8, 0.1,       // class 0
-                0.2, 0.1, 0.85,      // class 1
+                0.9, 0.8, 0.1, // class 0
+                0.2, 0.1, 0.85, // class 1
             ],
         )
         .unwrap()
@@ -262,11 +263,7 @@ mod tests {
         assert!(decode(&fixture(), 0, 640, 0.25, 0.5, 10).is_err());
         assert!(decode(&fixture(), 640, 640, 0.25, 0.5, 0).is_err());
 
-        let clipped = TensorF32::new(
-            vec![1, 5, 1],
-            vec![2.0, 2.0, 20.0, 20.0, 0.9],
-        )
-        .unwrap();
+        let clipped = TensorF32::new(vec![1, 5, 1], vec![2.0, 2.0, 20.0, 20.0, 0.9]).unwrap();
         let output = decode(&clipped, 10, 10, 0.25, 0.5, 10).unwrap();
         assert_eq!(output[0].xyxy, [0.0, 0.0, 10.0, 10.0]);
     }
