@@ -3,3 +3,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# Downloaded full MNIST dataset; exclude from git and release tarballs.
+/benchmarks/datasets/

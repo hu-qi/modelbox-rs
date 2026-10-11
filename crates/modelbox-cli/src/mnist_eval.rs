@@ -11,9 +11,9 @@ const MAX_SAMPLES: usize = 10_000;
 const CHUNK_SIZE: usize = 64;
 
 #[derive(Clone)]
-struct Sample {
-    label: usize,
-    image: Value,
+pub(super) struct Sample {
+    pub(super) label: usize,
+    pub(super) image: Value,
 }
 
 fn invalid(message: impl std::fmt::Display) -> FlowError {
@@ -81,30 +81,42 @@ fn classify(value: &Value) -> modelbox_core::Result<usize> {
         .ok_or_else(|| invalid("model output is empty"))
 }
 
-pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
-    if !(2..=3).contains(&args.len()) {
-        return Err(invalid(crate::usage()));
-    }
-    let samples = parse_csv(&fs::read_to_string(&args[1])?)?;
-    let minimum = match args.get(2) {
+pub(super) fn parse_minimum(input: Option<&String>, count: usize) -> modelbox_core::Result<usize> {
+    let minimum = match input {
         Some(value) => value
             .parse::<usize>()
             .map_err(|_| invalid("min_correct must be a nonnegative integer"))?,
         None => 0,
     };
+    if minimum > count {
+        return Err(invalid("min_correct cannot exceed sample count"));
+    }
+    Ok(minimum)
+}
+
+pub(super) fn evaluate(
+    model: &str,
+    dataset: &str,
+    samples: Vec<Sample>,
+    minimum: usize,
+) -> modelbox_core::Result<()> {
+    if samples.is_empty() {
+        return Err(invalid("empty labeled dataset"));
+    }
     if minimum > samples.len() {
         return Err(invalid("min_correct cannot exceed sample count"));
     }
     let mut runtime = Runtime::default();
     runtime
         .registry_mut()
-        .register(Arc::new(OnnxCpuFlowUnit::load(&args[0])?))?;
+        .register(Arc::new(OnnxCpuFlowUnit::load(model)?))?;
     let graph: GraphSpec = serde_json::from_str(crate::ONNX_GRAPH)?;
     let plan = runtime.compile(&graph)?;
 
     let mut confusion = [[0_usize; 10]; 10];
-    let mut predictions = Vec::with_capacity(samples.len());
+    let mut predictions = Vec::with_capacity(samples.len().min(100));
     let mut wrong = Vec::new();
+    let mut misclassified_count = 0usize;
     let mut correct = 0usize;
     for (chunk_id, batch) in samples.chunks(CHUNK_SIZE).enumerate() {
         let frames = batch.iter().map(|sample| sample.image.clone()).collect();
@@ -119,34 +131,58 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
         for (offset, (sample, result)) in batch.iter().zip(results).enumerate() {
             let predicted = classify(result)?;
             confusion[sample.label][predicted] += 1;
-            let matched = predicted == sample.label;
-            if matched {
+            if predicted == sample.label {
                 correct += 1;
             } else {
-                wrong.push(json!({
-                    "row_index": chunk_id * CHUNK_SIZE + offset,
-                    "expected": sample.label,
-                    "predicted": predicted
-                }));
+                misclassified_count += 1;
+                if wrong.len() < 50 {
+                    wrong.push(json!({
+                        "row_index": chunk_id * CHUNK_SIZE + offset,
+                        "expected": sample.label,
+                        "predicted": predicted
+                    }));
+                }
             }
-            predictions.push(predicted);
+            if samples.len() <= 100 {
+                predictions.push(predicted);
+            }
         }
     }
+    let per_digit: Vec<_> = confusion
+        .iter()
+        .enumerate()
+        .map(|(digit, row)| {
+            let total: usize = row.iter().sum();
+            json!({
+                "digit": digit,
+                "total": total,
+                "correct": row[digit],
+                "recall": if total == 0 { None } else { Some(row[digit] as f64 / total as f64) }
+            })
+        })
+        .collect();
 
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "dataset": &args[1],
-            "model": &args[0],
+            "dataset": dataset,
+            "model": model,
             "sample_count": samples.len(),
             "correct": correct,
             "accuracy": correct as f64 / samples.len() as f64,
             "min_correct": minimum,
-            "predicted_labels": predictions,
+            "predicted_labels": if samples.len() <= 100 { Some(predictions) } else { None },
             "misclassified": wrong,
+            "misclassified_count": misclassified_count,
+            "mistake_examples_capped_at": 50,
+            "per_digit": per_digit,
             "confusion_matrix_rows_expected_columns_predicted": confusion,
             "preprocessing": "u8 grayscale / 255.0 into float32[1,1,28,28]",
-            "warning": "10-sample fixture is a functional accuracy smoke test, not a statistically representative MNIST evaluation"
+            "warning": if samples.len() < 1000 {
+                "small labeled subset; do not extrapolate accuracy to full MNIST"
+            } else {
+                "result applies to this labeled test set and preprocessing; not a production generalization guarantee"
+            }
         }))?
     );
     if correct < minimum {
@@ -155,6 +191,15 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
         )));
     }
     Ok(())
+}
+
+pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
+    if !(2..=3).contains(&args.len()) {
+        return Err(invalid(crate::usage()));
+    }
+    let samples = parse_csv(&fs::read_to_string(&args[1])?)?;
+    let minimum = parse_minimum(args.get(2), samples.len())?;
+    evaluate(&args[0], &args[1], samples, minimum)
 }
 
 #[cfg(test)]

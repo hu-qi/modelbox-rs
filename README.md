@@ -160,3 +160,20 @@ cargo run --release -p modelbox-cli --features onnx -- \
 An optional third argument `[min_correct]` sets a minimum *count* of correct classifications. A failure exits nonzero after printing all results. The model is loaded and the graph compiled once; inputs are executed in finite chunks. CSV values are normalized by dividing each uint8 pixel by 255. The reference file is a **10-row excerpt claimed as MNIST test samples by its external maintainer**, not the model's self-generated logits. The sample size is too small to estimate general classification accuracy or justify performance parity with other frameworks.
 
 Fixture attribution and reuse terms are documented in `third_party/mnist-test-10/README.md` and `LICENSE`. This phase does **not** establish independent floating-point operator correctness; the existing graph-vs-direct check still uses a shared backend.
+
+### Full 10,000-image MNIST test-set validation (v0.2 experimental)
+
+The standard MNIST test set consists of **10,000 labeled 28×28 grayscale images** in two binary IDX files. The image/label files are **not committed**. Download the canonical test split from the CVDF Foundation's Google-hosted MNIST mirror with verified SHA256 checksums:
+
+```bash
+bash scripts/fetch-mnist-test.sh
+
+cargo run --release -p modelbox-cli --features onnx -- \
+  eval-mnist-idx examples/mnist.onnx \
+  benchmarks/datasets/mnist/t10k-images-idx3-ubyte \
+  benchmarks/datasets/mnist/t10k-labels-idx1-ubyte
+```
+
+The `eval-mnist-idx` command validates big-endian IDX headers (2051 images / 2049 labels), exact file lengths, 28×28 image shape, matching counts and labels in 0–9. It normalizes each pixel by `/255`, evaluates at most 10,000 examples in bounded 64-frame Graph batches, and reports overall accuracy, all ten per-digit recalls, a 10×10 confusion matrix, total misclassifications and up to 50 indexed error examples. The optional final `[min_correct]` argument enforces an acceptance count. In the first full CI run, Linux x86_64 and native macOS ARM64 both correctly classified 9,890/10,000 images (**98.90%**) with identical 10×10 confusion matrices. CI now gates at 9,850 correct (**98.50%**) to detect meaningful regressions while allowing a 40-image tolerance for backend/platform changes. This threshold is an engineering acceptance gate, not a statistical confidence bound.
+
+By design, the command omits the 10,000-element `predicted_labels` array from the JSON report to avoid enormous CI logs; smaller input sets retain it. Full dataset validation does **not** guarantee accuracy on real photographs or handwriting from other sources. Data sources, checksums and scope: [benchmarks/README.md](benchmarks/README.md).

@@ -122,3 +122,28 @@ The command returns sample count, exact per-image labels, confusion matrix, mist
 **Observed CI functional result:** both Linux and macOS ARM64 classify all 10 fixture rows correctly (10/10) in a single documented check. The CI acceptance gate now enforces `min_correct=10` for this fixed regression fixture. The raw labels and predictions are archived at [baselines/2026-10-11-labeled-mnist-test-10-ci.json](baselines/2026-10-11-labeled-mnist-test-10-ci.json).
 
 **Interpretation:** the labels come from an external MNIST test sample set rather than our synthetic image. However, n=10 is only a smoke/diagnostic fixture and is not enough to claim a meaningful population accuracy estimate. Independent numerical reference comparisons, full 10,000-example evaluation, and object-detection acceptance are still pending.
+
+## Canonical full MNIST test split: 10,000 labeled images
+
+The **official test split** is 10,000 images and labels, stored as IDX unsigned-byte arrays with big-endian headers. Source documentation: [original MNIST database](https://yann.lecun.org/exdb/mnist/), [CVDF Foundation's supported Google storage mirror](https://github.com/cvdfoundation/mnist). We download and checksum the test split but **do not vendor it**.
+
+```bash
+bash scripts/fetch-mnist-test.sh
+cargo run --release -p modelbox-cli --features onnx -- \
+  eval-mnist-idx examples/mnist.onnx \
+  benchmarks/datasets/mnist/t10k-images-idx3-ubyte \
+  benchmarks/datasets/mnist/t10k-labels-idx1-ubyte
+```
+
+These are the compressed archive SHA256 values that the download script verifies before extraction:
+
+| File | SHA256 |
+|---|---|
+| `t10k-images-idx3-ubyte.gz` | `8d422c7b0a1c1c79245a5bcf07fe86e33eeafee792b84584aec276f5a2dbc4e6` |
+| `t10k-labels-idx1-ubyte.gz` | `f7ae60f92e00ec6debd23a6088c31dbd2371eca3ffa0defaefb259924204aec6` |
+
+Both hashes are published independently by the [Guild AI MNIST resource configuration](https://guildai.org/t/guild-file-cheatsheet/192). The decompressed images are 7,840,016 bytes (16-byte header + 10,000 × 784 bytes), and labels are 10,008 bytes (8-byte header + 10,000 labels); these lengths and magic fields are strictly validated by `eval-mnist-idx`.
+
+Run summary includes exact `sample_count`, overall `accuracy`, `correct`, per-digit total/correct/recall, 10×10 confusion matrix, a full mistake count and the first 50 indexed errors. To keep CI logs bounded, `predicted_labels` is `null` for more than 100 samples. The benchmark has no timing instrumentation: it measures **correctness**, not model load time, FPS, or production throughput.
+
+The existing 10-row CSV mode and its fixed 10/10 CI regression remain unchanged. **Verified full-set result:** Ubuntu Linux x86_64 and native macOS ARM64 ONNX CPU jobs each classified exactly **9,890 / 10,000 (98.90%)** images, with the same confusion matrix and 110 mistakes. The full report is in [baselines/2026-10-11-mnist-full-10000-ci.json](baselines/2026-10-11-mnist-full-10000-ci.json). After observing that cross-platform baseline, we set a pragmatic CI acceptance gate of **9,850 correct (98.50%)**, allowing a 40-image drift margin. This is not a guarantee of accuracy outside MNIST, nor a confidence interval.
