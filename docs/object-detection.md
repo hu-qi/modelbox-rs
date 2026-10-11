@@ -51,3 +51,9 @@ The downloader fetches [webml/yolov8n ONNX](https://huggingface.co/webml/yolov8n
 This narrow end-to-end adapter uses the trained 80-class 640×640 YOLOv8n exporter with a `[1,84,8400]` NMS-free output. It accepts JPEG/PNG input, RGB conversion, 114-letterbox preprocessing, CHW /255 normalization, Rust Graph / ONNX Runtime CPU inference, existing class-aware NMS, and inverse letterbox projection. Outputs include COCO class labels, confidence scores and boxes in **original image pixel space**.
 
 The interpolation is a triangle filter, which approximates but may differ from OpenCV's bilinear implementation. The CI smoke on one sample checks for person+bus; **it does not establish independent reference box agreement or mAP**. Multi-output models and Ultralytics end-to-end NMS exports remain unsupported.
+
+## Observed first-party detection-box golden
+
+The user's 2026-10-11 Apple Silicon Mac mini **release** run detected four people and one bus on the fixed `bus.jpg` photograph. The ten-dimensional MNIST-style checksum is insufficient for object detection: the full five detected boxes and confidences are kept in `benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json`, including the image dimensions, 640×640 input and the model/image hash provenance.
+
+CI uses `scripts/verify-yolov8n-demo.py` to match detections by **class ID and bounding box** without assuming a stable NMS array order or anchor index. It verifies five expected detections, exact output dimensions and geometry, boxes inside the source-image canvas and tolerance of ±8 original-image pixels per coordinate and ±0.03 absolute confidence. Unit tests intentionally perturb order, boxes, scores and labels to exercise both success and failure. This verifies **numerical regression against the existing implementation**, not correctness against Ultralytics/OpenCV ground truth. Exact source-image box equality and official labeled-detection mAP are still outstanding.
