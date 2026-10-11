@@ -25,7 +25,9 @@ impl fmt::Display for FlowError {
             Self::InvalidGraph(message) => write!(f, "invalid graph: {message}"),
             Self::UnknownUnit(message) => write!(f, "unknown flow unit: {message}"),
             Self::Execution(message) => write!(f, "execution error: {message}"),
-            Self::NodeExecution { node_id, message } => write!(f, "execution error at node {node_id}: {message}"),
+            Self::NodeExecution { node_id, message } => {
+                write!(f, "execution error at node {node_id}: {message}")
+            }
             Self::Io(error) => write!(f, "I/O error: {error}"),
             Self::Json(error) => write!(f, "JSON error: {error}"),
         }
