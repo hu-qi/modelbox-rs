@@ -14,6 +14,7 @@ mod mnist_eval;
 mod mnist_idx;
 #[cfg(feature = "onnx")]
 mod mnist_png;
+mod yolo_post;
 
 const DEMO: &str = include_str!("../../../examples/hello.json");
 #[cfg(feature = "onnx")]
@@ -29,6 +30,7 @@ fn usage() -> &'static str {
   modelbox infer-mnist-png <model.onnx> <28x28-grayscale.png>   (requires --features onnx)
   modelbox eval-mnist-csv <model.onnx> <labeled-test.csv> [min_correct]   (requires --features onnx)
   modelbox eval-mnist-idx <model.onnx> <images.idx3-ubyte> <labels.idx1-ubyte> [min_correct]   (requires --features onnx)
+  modelbox postprocess-yolo <tensor.json|infer-output.json> <model_width> <model_height> [confidence] [iou] [max_detections]
   modelbox bench <model.onnx> <tensor.json> [iterations] [warmup]   (requires --features onnx)
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
@@ -62,6 +64,7 @@ fn execute() -> Result<(), FlowError> {
     }
     let runtime = Runtime::default();
     match command.as_str() {
+        "postprocess-yolo" => yolo_post::run(args.collect())?,
         "demo" => {
             let graph = parse_graph(DEMO)?;
             let inputs: Vec<_> = args.map(Value::Text).collect();
