@@ -15,6 +15,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  studio:
+    name: Studio web build and local bridge tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build Studio
+        working-directory: studio
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Local bridge contract tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_studio_bridge.py'
+
   rust:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
