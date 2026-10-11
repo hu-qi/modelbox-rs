@@ -15,7 +15,7 @@ mod onnx_cpu;
 pub use onnx_cpu::OnnxCpuFlowUnit;
 
 pub use error::FlowError;
-pub use flow_unit::{FlowRegistry, FlowUnit, PortDef};
+pub use flow_unit::{FlowRegistry, FlowUnit, FlowUnitDescriptor, PortDef, PortDescriptor};
 pub use graph::{EdgeSpec, ExecutionPlan, GraphSpec, NodeSpec};
 pub use runtime::{RunResult, Runtime};
 pub use value::{DataType, TensorF32, Value};
