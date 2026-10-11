@@ -241,3 +241,16 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 Both paths use **one loaded ONNX session**, the same preprocessed RGB/CHW tensor, and alternating call order; each pair checks the full output tensor elementwise for differences larger than `1e-4`. The comparison excludes image decoding, preprocessing and NMS *inside its timed intervals* and reports descriptive Graph vs direct mean/p50/p95. The difference is **not pure scheduler overhead**: input ownership, worker creation, channels and terminal captures are additional differences.
+
+### Model-free Graph transport control on a real YOLO-sized tensor
+
+The 2026-10-11 Mac mini same-session paired benchmark is archived in [benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-graph-vs-direct-release.json](benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-graph-vs-direct-release.json): Direct 18.7114 ms mean, Graph 20.2150 ms, mean gap **1.5037 ms (8.04%)** across 21 pairs, **0.0** maximum tensor output discrepancy. Every Graph paired observation was slower, but the gap is not provably pure scheduling.
+
+The next diagnostic runs a 3-node **identity Graph** on the same 640×640×3 float32 image tensor (4,915,200 bytes), using an ownership-preserving identity unit instead of ONNX. It excludes input preprocessing and input cloning from both timing windows. No ONNX model is loaded.
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-transport-yolov8 benchmarks/datasets/detection/bus.jpg 21 5
+```
+
+The result compares Graph transport with in-process owned identity forwarding. This is a **separate no-model diagnostic**, not an arithmetic explanation of the model-specific 1.50 ms gap, because the ONNX execution path and cache/worker interactions are different. Do not assume this directly measures a recoverable speedup.

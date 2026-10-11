@@ -36,7 +36,9 @@
 - [x] Real-model YOLOv8n `bus.jpg` observed Mac release detection-box and score regression archived with numeric tolerance gates on Linux and Apple Silicon (first-party golden, not an independent accuracy reference).
 - [x] Experimental YOLOv8n single-file-to-detections stage benchmark (decode, preprocessing, Graph/ONNX CPU, NMS/project, total), with same-session reuse, stage reconciliation and cross-OS smoke.
 - [x] Real Mac mini Release stage baseline: 28.9208 ms mean file→YOLOv8n detections (30 timed frames, 5 warmups), with stage shares and strict timing reconciliation archived.
-- [ ] Paired direct ONNX FlowUnit vs Graph model-specific Release baseline to distinguish integration cost from model compute.
+- [x] Mac mini Release paired direct ONNX FlowUnit vs Graph: 21 shared-session pairs, 18.7114 vs 20.2150 ms mean, +1.5037 ms (8.04%) Graph gap; identical 705,600-value model output.
+- [x] Separate same-sized owned-identity Graph transport benchmark to quantify model-free worker/channel/capture control (not subtraction-ready scheduler attribution).
+- [ ] Measure the identity transport control in Mac Release; then decide whether persistent worker reuse or a specialized single-image path is warranted.
 - [ ] Independent operator-level inference oracle and labeled detection dataset mAP baseline.
 
 

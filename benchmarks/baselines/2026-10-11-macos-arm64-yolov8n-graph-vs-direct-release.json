@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "source": "User-provided local Apple Silicon Mac mini Release command output in this conversation",
+  "purpose": "Same-ONNX-session direct FlowUnit vs 3-node Graph performance baseline, NOT a pure scheduler overhead estimate",
+  "git_base_commit": "ed70787af2939296d35f9b3164c5e0c72cbe2d36",
+  "benchmark": "yolov8n_paired_graph_vs_direct_same_onnx_session",
+  "profile": "release",
+  "model_source": "webml/yolov8n/onnx/yolov8n.onnx",
+  "model_sha256": "190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d",
+  "image_source": "ultralytics/assets/im/bus.jpg",
+  "image_git_blob_sha1": "40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe",
+  "input_shape": [
+    1,
+    3,
+    640,
+    640
+  ],
+  "output_shape": [
+    1,
+    84,
+    8400
+  ],
+  "measured_pairs": 21,
+  "warmup_pairs": 5,
+  "alternating_starting_path": true,
+  "direct_flowunit_ms": {
+    "min": 18.0285,
+    "mean": 18.711353142857142,
+    "p50": 18.661875,
+    "p95": 19.344042,
+    "max": 19.512375
+  },
+  "graph_ms": {
+    "min": 19.354333,
+    "mean": 20.21502780952381,
+    "p50": 20.2655,
+    "p95": 20.968875,
+    "max": 21.042084
+  },
+  "descriptive_gap": {
+    "graph_minus_direct_mean_ms": 1.5036746666666687,
+    "graph_to_direct_mean_ratio": 1.0803616208398419,
+    "paired_graph_minus_direct_ms": [
+      2.417709,
+      0.966791,
+      1.502333,
+      2.523126,
+      1.478583,
+      1.992333,
+      2.362541,
+      1.593125,
+      1.392875,
+      0.745708,
+      1.363001,
+      0.863583,
+      2.256459,
+      1.483126,
+      1.90825,
+      1.057458,
+      1.243959,
+      1.168209,
+      1.702916,
+      1.100833,
+      0.45425
+    ],
+    "all_pairs_graph_slower": true,
+    "paired_difference_min_ms": 0.45425,
+    "paired_difference_median_ms": 1.478583,
+    "paired_difference_max_ms": 2.523126
+  },
+  "max_output_element_abs_diff": 0,
+  "last_detection_count": 5,
+  "last_detection_numeric_fingerprint": 9498.732394576073,
+  "session_and_graph_compile_excluded": true,
+  "image_decode_preprocess_nms_outside_timed_windows": true,
+  "limitations": [
+    "Both paths use the same ONNX Runtime session but differ in input ownership, worker creation and capture; mean gap not pure scheduler cost.",
+    "Same photo and input repeatedly; caches and CPU thermal/power state may affect reported times.",
+    "Single 21-pair Release observation; exact CPU model and macOS build not supplied.",
+    "Tensor clone occurs outside Graph timer in the paired benchmark; related copying effects are not included in reported means.",
+    "Not a video stream throughput or production generalization assessment."
+  ]
+}

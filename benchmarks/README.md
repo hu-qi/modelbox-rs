@@ -217,3 +217,26 @@ cargo run --release -p modelbox-cli --features onnx -- \
 This loads the ONNX model **only once** and creates one Graph plan. Each measured round alternates the direct FlowUnit and Graph invocation ordering on the **same** preprocessed, read-only input. Excludes input tensor construction, image decode/Letterbox, NMS, model loading and graph plan compilation from the two timed intervals. Numerically checks all `[1,84,8400]` output elements (allowed max absolute difference `1e-4`), then outside timing confirms the expected five objects. Reports descriptive direct-vs-Graph duration distributions and individual paired gaps.
 
 `Graph minus direct` is **not strictly scheduler overhead**; these paths differ in worker startup, channel traffic, memory ownership and output handling. No numerical performance assertions run in cloud CI, only functionality smoke tests. A hardware-specific performance claim requires the user's Mac mini Release result.
+
+## Mac mini Release: same-session YOLOv8n Graph vs Direct (2026-10-11)
+
+Archived first-party observation: [baselines/2026-10-11-macos-arm64-yolov8n-graph-vs-direct-release.json](baselines/2026-10-11-macos-arm64-yolov8n-graph-vs-direct-release.json). On the same 640×640×3 preprocessed `bus.jpg` tensor and **one shared ONNX Runtime session**, 21 pairs alternated Graph and direct calls after five warmups:
+
+| Same-session path | Mean | P50 | P95 |
+|---|---:|---:|---:|
+| Direct `FlowUnit::process` | 18.7114 ms | 18.6619 ms | 19.3440 ms |
+| Three-node Graph | 20.2150 ms | 20.2655 ms | 20.9689 ms |
+| **Observed mean difference** | **+1.5037 ms** | — | — |
+
+All 21 paired differences were positive (range **+0.4543 to +2.5231 ms**, median +1.4786 ms). The complete model output `[1,84,8400]` matched elementwise exactly; the final five detections retained numeric fingerprint `9498.732394576073`. Direct and Graph use the *same* ORT CPU session, so this comparison is primarily about invoking the FlowUnit through the Graph path, but does **not** uniquely identify thread creation, queue time or buffer overhead.
+
+### Follow-up: owned identity transport on the same tensor shape
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-transport-yolov8 benchmarks/datasets/detection/bus.jpg 21 5
+```
+
+This benchmark preprocesses the same photograph once to a **4,915,200-byte** `[1,3,640,640]` f32 input, compiles a three-node Graph (`tensor.input → bench.tensor_identity → tensor.output`), and compares against a direct **owned** identity `FlowUnit`. Neither call performs ONNX inference; both get independently prepared input buffers, cloned **before** the timer starts. It measures worker/channel/capture overhead on the same input shape and verifies exact output equality. Sequential paired runs alternate order and report min/mean/P50/P95/max.
+
+Do **not** subtract this identity benchmark's mean from the 1.50 ms real-model gap: lack of ONNX work, different cache/locking and scheduling effects prevent straightforward decomposition. CI exercises functionality on Linux/Apple Silicon with short, **debug** smoke checks; performance claims require actual Mac mini Release measurements.

@@ -99,6 +99,12 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 3 1 > yolo-graph-direct.json
           python3 -c 'import json; d=json.load(open("yolo-graph-direct.json")); assert d["measured_pairs"] == 3; assert d["warmup_pairs"] == 1; assert d["last_detection_count"] == 5; assert d["max_output_element_abs_diff"] <= 0.0001; assert d["graph_ms"]["mean"] > 0 and d["direct_flowunit_ms"]["mean"] > 0; print("Graph vs direct smoke:", d["graph_ms"]["mean"], d["direct_flowunit_ms"]["mean"])'
+      - name: YOLO-sized owned tensor Graph transport control
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- bench-transport-yolov8 \
+            benchmarks/datasets/detection/bus.jpg 3 1 > yolo-transport.json
+          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
@@ -172,6 +178,12 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 3 1 > yolo-graph-direct.json
           python3 -c 'import json; d=json.load(open("yolo-graph-direct.json")); assert d["measured_pairs"] == 3; assert d["warmup_pairs"] == 1; assert d["last_detection_count"] == 5; assert d["max_output_element_abs_diff"] <= 0.0001; assert d["graph_ms"]["mean"] > 0 and d["direct_flowunit_ms"]["mean"] > 0; print("Graph vs direct smoke:", d["graph_ms"]["mean"], d["direct_flowunit_ms"]["mean"])'
+      - name: YOLO-sized owned tensor Graph transport control
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- bench-transport-yolov8 \
+            benchmarks/datasets/detection/bus.jpg 3 1 > yolo-transport.json
+          python3 -c 'import json; x=json.load(open("yolo-transport.json")); assert x["output_matches_input_exactly"]; assert not x["onnx_model_loaded"]; assert x["same_graph_topology_as_onnx"]; assert x["input_tensor_bytes"] == 4915200; assert x["measured_pairs"] == 3; assert x["warmup_pairs"] == 1; assert len(x["paired_graph_minus_direct_ms"]) == 3; print("YOLO input transport smoke:", x["graph_identity_ms"]["mean"], x["direct_owned_identity_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
