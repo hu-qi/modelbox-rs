@@ -18,9 +18,16 @@ fn invalid(message: impl std::fmt::Display) -> FlowError {
     FlowError::Execution(format!("YOLO stage benchmark: {message}"))
 }
 
-fn count(input: Option<&String>, default: usize, min: usize, max: usize) -> modelbox_core::Result<usize> {
+fn count(
+    input: Option<&String>,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> modelbox_core::Result<usize> {
     let value = match input {
-        Some(raw) => raw.parse::<usize>().map_err(|_| invalid(format!("count must be {min}..={max}")))?,
+        Some(raw) => raw
+            .parse::<usize>()
+            .map_err(|_| invalid(format!("count must be {min}..={max}")))?,
         None => default,
     };
     if !(min..=max).contains(&value) {
@@ -44,7 +51,7 @@ fn statistics(values: &[u128]) -> JsonValue {
         "p50": to_ms(percentile(&sorted, 50)),
         "p95": to_ms(percentile(&sorted, 95)),
         "max": to_ms(sorted[sorted.len() - 1]),
-        "mean": to_ms(values.iter().map(|&x| x as f64).sum::<f64>() as u128) / values.len() as f64,
+        "mean": values.iter().map(|&x| x as f64).sum::<f64>() / values.len() as f64 / 1_000_000.0,
     })
 }
 
@@ -117,8 +124,8 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
             ];
             let total = (after_postprocess - start).as_nanos();
             let sum = stage.iter().sum::<u128>();
-            maximum_stage_reconciliation_delta_ns = maximum_stage_reconciliation_delta_ns
-                .max(total.abs_diff(sum));
+            maximum_stage_reconciliation_delta_ns =
+                maximum_stage_reconciliation_delta_ns.max(total.abs_diff(sum));
             decode_ns.push(stage[0]);
             preprocess_ns.push(stage[1]);
             graph_ns.push(stage[2]);
@@ -126,16 +133,10 @@ pub(crate) fn run(args: Vec<String>) -> modelbox_core::Result<()> {
             total_ns.push(total);
         }
     }
-    let mean_total_ms = total_ns.iter().map(|&ns| ns as f64).sum::<f64>()
-        / iterations as f64
-        / 1_000_000.0;
-    let mean_stage_sum_ms = [
-        &decode_ns,
-        &preprocess_ns,
-        &graph_ns,
-        &postprocess_ns,
-    ]
-    .iter()
+    let mean_total_ms =
+        total_ns.iter().map(|&ns| ns as f64).sum::<f64>() / iterations as f64 / 1_000_000.0;
+    let mean_stage_sum_ms = [&decode_ns, &preprocess_ns, &graph_ns, &postprocess_ns]
+        .iter()
     .map(|stage| stage.iter().map(|&ns| ns as f64).sum::<f64>())
     .sum::<f64>()
         / iterations as f64
