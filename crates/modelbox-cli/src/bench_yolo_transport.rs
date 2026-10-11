@@ -158,10 +158,14 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
             return Err(invalid("identity transfer altered the input tensor"));
         }
         if !std::ptr::eq(g_tensor.data().as_ptr(), graph_buffer) {
-            return Err(invalid("Graph unexpectedly copied the single-consumer input tensor"));
+            return Err(invalid(
+                "Graph unexpectedly copied the single-consumer input tensor",
+            ));
         }
         if !std::ptr::eq(d_tensor.data().as_ptr(), direct_buffer) {
-            return Err(invalid("direct owned identity unexpectedly copied the input tensor"));
+            return Err(invalid(
+                "direct owned identity unexpectedly copied the input tensor",
+            ));
         }
         checksum = g_tensor.data().iter().map(|&v| f64::from(v)).sum();
         if turn >= warmup {
@@ -201,8 +205,8 @@ mod tests {
     use super::{count, stats, OwnedIdentity};
     use crate::bench::IDENTITY_GRAPH;
     use modelbox_core::{FlowUnit, GraphSpec, Runtime, TensorF32, Value};
-    use std::sync::Arc;
     use serde_json::Value as JsonValue;
+    use std::sync::Arc;
 
     #[test]
     fn accepts_bounded_iterations() {
@@ -222,13 +226,18 @@ mod tests {
     #[test]
     fn owned_graph_round_trip_reuses_the_original_allocation() {
         let mut runtime = Runtime::default();
-        runtime.registry_mut().register(Arc::new(OwnedIdentity)).unwrap();
+        runtime
+            .registry_mut()
+            .register(Arc::new(OwnedIdentity))
+            .unwrap();
         let graph: GraphSpec = serde_json::from_str(IDENTITY_GRAPH).unwrap();
         let plan = runtime.compile(&graph).unwrap();
 
         let source = TensorF32::new(vec![1, 2], vec![1.0, 2.0]).unwrap();
         let original_ptr = source.data().as_ptr();
-        let result = runtime.run_plan(&plan, vec![Value::TensorF32(source)]).unwrap();
+        let result = runtime
+            .run_plan(&plan, vec![Value::TensorF32(source)])
+            .unwrap();
         let values = result.outputs.get("result.out").unwrap();
         match values.as_slice() {
             [Value::TensorF32(tensor)] => {
