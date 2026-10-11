@@ -31,6 +31,7 @@ const ONNX_GRAPH: &str = include_str!("../../../examples/relu.json");
 fn usage() -> &'static str {
     "Usage:
   modelbox demo [TEXT ...]
+  modelbox catalog --json
   modelbox validate <graph.json>
   modelbox run <graph.json> <TEXT>
   modelbox run-batch <graph.json> <TEXT ...>
@@ -133,6 +134,12 @@ fn execute() -> Result<(), FlowError> {
                 .register(Arc::new(OnnxCpuFlowUnit::load(model_path)?))?;
             let result = inference_runtime.run(&graph, Value::TensorF32(tensor))?;
             println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        "catalog" => {
+            if args.next().as_deref() != Some("--json") || args.next().is_some() {
+                return Err(FlowError::Execution(usage().to_owned()));
+            }
+            println!("{}", serde_json::to_string_pretty(&modelbox_core::FlowRegistry::default().descriptors())?);
         }
         "validate" => {
             let path = args
