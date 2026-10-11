@@ -122,10 +122,11 @@ pub(crate) fn run(args: Vec<String>) -> Result<()> {
             let start = Instant::now();
             let result = runtime.run_plan(&plan, vec![graph_input])?;
             let elapsed = start.elapsed().as_nanos();
-            let output = result.outputs
-                .get("result.out")
+            let mut outputs = result.outputs;
+            let output = outputs
+                .remove("result.out")
                 .ok_or_else(|| invalid("missing result.out"))?;
-            Ok((elapsed, one_tensor(output.clone())?))
+            Ok((elapsed, one_tensor(output)?))
         };
         let run_direct = || -> Result<(u128, TensorF32)> {
             let start = Instant::now();
@@ -202,9 +203,13 @@ mod tests {
     fn owned_identity_is_exact_and_type_checked() {
         let input = Value::TensorF32(TensorF32::new(vec![1, 2], vec![1.0, 2.0]).unwrap());
         assert_eq!(
-            OwnedIdentity.process_owned(vec![input.clone()], &JsonValue::Null).unwrap(),
+            OwnedIdentity
+                .process_owned(vec![input.clone()], &JsonValue::Null)
+                .unwrap(),
             vec![input]
         );
-        assert!(OwnedIdentity.process_owned(vec![Value::Integer(1)], &JsonValue::Null).is_err());
+        assert!(OwnedIdentity
+            .process_owned(vec![Value::Integer(1)], &JsonValue::Null)
+            .is_err());
     }
 }
