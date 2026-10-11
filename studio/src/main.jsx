@@ -25,6 +25,7 @@ function App(){
   const [input,setInput]=useState('hello modelbox'),[status,setStatus]=useState('未连接 Runtime'),[busy,setBusy]=useState(false);
   const [configDraft,setConfigDraft]=useState('null');
   const [configDirty,setConfigDirty]=useState(false);
+  const [lastRun,setLastRun]=useState(null);
   useEffect(()=>{fetch('/api/catalog').then(r=>r.json()).then(d=>{if(!Array.isArray(d))throw Error(d.error||'invalid catalog');setCatalog(d);setStatus('Rust FlowUnit Registry 已连接');}).catch(e=>setStatus('连接失败：'+e.message));},[]);
   const descriptors=useMemo(()=>Object.fromEntries(catalog.map(x=>[x.name,x])),[catalog]);
   const flowNodes=useMemo(()=>nodes.map(n=>({...n,data:{...n.data,descriptor:descriptors[n.data.unit]}})),[nodes,descriptors]);
@@ -38,7 +39,17 @@ function App(){
   function addUnit(d){let i=1;while(nodes.some(n=>n.id==='node'+i))i++;setNodes(ns=>[...ns,{id:'node'+i,type:'flowunit',position:{x:100+ns.length*25,y:100+ns.length*30},data:{unit:d.name,config:d.required_string_config_keys.length?Object.fromEntries(d.required_string_config_keys.map(k=>[k,''])):null}}]);}
   async function execute(action){
     if(!guardSaved())return;
-    setBusy(true);try{const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({graph:spec(),input})});const data=await response.json();setStatus((response.ok?'成功':'失败')+' · '+JSON.stringify(data,null,2));}catch(e){setStatus('调用失败：'+e.message);}finally{setBusy(false);}
+    setBusy(true);
+    setLastRun(null);
+    try {
+      const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({graph:spec(),input})});
+      const data=await response.json();
+      setLastRun({action,ok:response.ok,diagnostics:data.diagnostics??null,result:data.result??null,error:data.error??null,message:data.message??null});
+      setStatus(response.ok ? action==='run' ? '执行成功' : '校验成功' : '执行/校验失败');
+    } catch(e) {
+      setLastRun({action,ok:false,diagnostics:null,result:null,error:e.message,message:null});
+      setStatus('调用失败：'+e.message);
+    } finally {setBusy(false);}
   }
   async function load(event){
     const file=event.target.files?.[0];if(!file)return;
@@ -55,6 +66,6 @@ function App(){
       <main><ReactFlow nodes={flowNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={c=>setNodes(n=>applyNodeChanges(c,n))} onEdgesChange={c=>setEdges(e=>applyEdgeChanges(c,e))} onConnect={onConnect} onNodeClick={(_,n)=>setSelected(n.id)} onPaneClick={()=>setSelected(null)} fitView><Background/><Controls/><MiniMap/></ReactFlow></main>
       <section><h3>属性与运行</h3>{current?<><div>节点：{current.id}</div><div>算子：{current.data.unit}</div><label>配置 JSON<textarea value={configDraft} onChange={e=>{setConfigDraft(e.target.value);setConfigDirty(true);}}/></label><button onClick={applyConfig}>应用节点配置</button><button onClick={()=>{setNodes(ns=>ns.filter(n=>n.id!==current.id));setEdges(es=>es.filter(e=>e.source!==current.id&&e.target!==current.id));setSelected(null);}}>删除节点</button></>:<p>单击节点以修改配置。选择连线后按 Delete 可删除。</p>}
       <h4>Graph 文件</h4><button onClick={()=>{if(guardSaved())download(name+'.json',spec());}}>导出 GraphSpec</button><button onClick={()=>{if(guardSaved())download(name+'.studio.json',{graph:spec(),positions:Object.fromEntries(nodes.map(n=>[n.id,n.position]))});}}>保存画布</button><label className="upload">导入 JSON<input type="file" accept=".json,application/json" onChange={load}/></label>
-      <h4>Rust Runtime</h4><input value={input} onChange={e=>setInput(e.target.value)} aria-label="运行输入文本"/><button disabled={busy} onClick={()=>execute('validate')}>校验 Graph</button><button disabled={busy} onClick={()=>execute('run')}>执行 Graph</button><pre role="status">{status}</pre></section></div></div>;
+      <h4>Rust Runtime</h4><input value={input} onChange={e=>setInput(e.target.value)} aria-label="运行输入文本"/><button disabled={busy} onClick={()=>execute('validate')}>校验 Graph</button><button disabled={busy} onClick={()=>execute('run')}>执行 Graph</button><pre role="status">{status}</pre>{lastRun&&<div className="run-report" aria-label="Runtime 诊断"><h4>{lastRun.ok?'完成':'错误'} · {lastRun.action}</h4>{lastRun.diagnostics&&<p>CLI 端到端耗时：{lastRun.diagnostics.elapsed_ms} ms（含进程启动/可能的编译，非推理耗时）</p>}{lastRun.error&&<pre role="alert">{lastRun.error}</pre>}{lastRun.message&&<pre>{lastRun.message}</pre>}{lastRun.result&&<><p>输入数量：{lastRun.result.input_count}</p><pre>{JSON.stringify(lastRun.result.outputs,null,2)}</pre></>}</div>}</section></div></div>;
 }
 createRoot(document.getElementById('root')).render(<App/>);
