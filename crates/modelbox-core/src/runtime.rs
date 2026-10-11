@@ -350,11 +350,19 @@ impl Runtime {
                     cancelled: Arc::clone(&cancelled),
                     profile: profile.clone(),
                 };
+                let failing_node_id = node.id.clone();
                 let worker_errors = Arc::clone(&errors);
                 let worker_cancelled = Arc::clone(&cancelled);
                 handles.push(scope.spawn(move || {
                     if let Err(error) = worker.execute() {
-                        remember_error(&worker_errors, &worker_cancelled, error);
+                        remember_error(
+                            &worker_errors,
+                            &worker_cancelled,
+                            FlowError::NodeExecution {
+                                node_id: failing_node_id,
+                                message: error.to_string(),
+                            },
+                        );
                     }
                 }));
             }
