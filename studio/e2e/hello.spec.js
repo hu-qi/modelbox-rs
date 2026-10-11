@@ -37,3 +37,13 @@ test('real Rust CLI reports invalid edited graph', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('失败');
   await expect(page.getByRole('alert')).toContainText('graph');
 });
+
+test('profiled node metrics come from real Rust Runtime', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.getByRole('button', { name: '分析节点耗时' }).click();
+  await expect(page.getByLabel('节点处理耗时')).toContainText('upper');
+  await expect(page.getByLabel('节点处理耗时')).toContainText('prefix');
+  await expect(page.getByLabel('节点处理耗时')).toContainText('result');
+  await expect(page.getByLabel('节点处理耗时')).toContainText('不含调度及队列');
+});
