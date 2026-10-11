@@ -51,6 +51,17 @@
 
 Exit gate: run image classification and object detection reference fixtures; compare results against an independent ONNX inference reference.
 
+## v0.2 parallel track — ModelBox Studio MVP (not yet implemented)
+
+- [ ] Real node/port editor bound to native GraphSpec JSON, with palette backed by registered FlowUnit descriptions.
+- [ ] Typed edge validation, graph compile errors, save/reopen without losing executable semantics.
+- [ ] Invoke existing runtime validation and execution (CLI bridge first); display actual outputs/errors, never simulated execution.
+- [ ] Document Studio canvas-only metadata separately from executable GraphSpec so layout does not break CLI consumers.
+- [ ] Validate existing examples/hello.json end-to-end, including a negative incompatible-port fixture.
+- [ ] Investigate original ModelBox WebUI, DOT-in-TOML graph import, and migration coverage; unsupported constructs produce explicit reports.
+
+MVP exit gate: edit → validate → save → reload → execute the original hello graph through Rust Runtime, with preserved node config and exact typed connections.
+
 ## v0.3 — Edge AI
 
 - Rockchip RK3588/RKNN as first NPU target, strictly versioned vendor integration.
@@ -60,12 +71,12 @@ Exit gate: run image classification and object detection reference fixtures; com
 
 Exit gate: real RK3588 board tests and reproducible evidence of clean restart/stop under injected failures.
 
-## v0.4 — Flow Studio
+## v0.4 — ModelBox Studio advanced workflow
 
-- Browser graph editor and typed node palette.
-- Live graph validation, execution traces, logs and runs.
-- Read-only preliminary import from ModelBox Graphviz-DOT-in-TOML.
-- Document compatibility matrix; unsupported legacy attributes produce actionable diagnostics.
+- Live stream previews, logs, traces, node profiling and diagnostics tied to actual Runtime evidence.
+- Subgraphs, reusable templates, controlled plugins and deployment configuration.
+- AI-assisted authoring with explicit validation and human-controlled execution.
+- Expand read-only migration support from legacy DOT-in-TOML, with a compatibility report.
 
 Exit gate: edit, validate, run, export and re-import one complete video AI workflow.
 
