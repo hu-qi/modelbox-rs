@@ -177,3 +177,14 @@ cargo run --release -p modelbox-cli --features onnx -- \
 The `eval-mnist-idx` command validates big-endian IDX headers (2051 images / 2049 labels), exact file lengths, 28×28 image shape, matching counts and labels in 0–9. It normalizes each pixel by `/255`, evaluates at most 10,000 examples in bounded 64-frame Graph batches, and reports overall accuracy, all ten per-digit recalls, a 10×10 confusion matrix, total misclassifications and up to 50 indexed error examples. The optional final `[min_correct]` argument enforces an acceptance count. In the first full CI run, Linux x86_64 and native macOS ARM64 both correctly classified 9,890/10,000 images (**98.90%**) with identical 10×10 confusion matrices. CI now gates at 9,850 correct (**98.50%**) to detect meaningful regressions while allowing a 40-image tolerance for backend/platform changes. This threshold is an engineering acceptance gate, not a statistical confidence bound.
 
 By design, the command omits the 10,000-element `predicted_labels` array from the JSON report to avoid enormous CI logs; smaller input sets retain it. Full dataset validation does **not** guarantee accuracy on real photographs or handwriting from other sources. Data sources, checksums and scope: [benchmarks/README.md](benchmarks/README.md).
+
+### Experimental YOLO raw prediction postprocessing (no model inference)
+
+`postprocess-yolo` is a **detector-output adapter only**. It decodes *single-output, NMS-free* YOLOv8/YOLO11-style `float32[1,4+num_classes,num_candidates]` channel-first tensors: center-x, center-y, width, height and already-activated class scores. It selects the highest-scoring class per candidate, applies a confidence cutoff, converts `xywh → xyxy`, clips boxes to **model-input pixels**, and runs deterministic class-aware non-maximum suppression. It intentionally rejects incompatible tensor shapes.
+
+```bash
+cargo run -p modelbox-cli -- \
+  postprocess-yolo examples/yolo-raw-output.json 640 640 0.25 0.5 10
+```
+
+The input is either a raw `TensorF32` JSON file or a complete serialized Graph `infer` result containing `outputs.result.out[0].value`. No trained YOLO ONNX weights are bundled, no camera input is processed, and **no real object detection inference, letterbox correction, or mAP is claimed** by this fixture. The supplied fixture contains three intentionally synthetic candidates exercising box conversion, confidence gating and same-class NMS. YOLOv5 objectness outputs, YOLO end-to-end NMS exports, segmentation, pose and multi-output detectors require separate adapters. See `docs/object-detection.md` for the phase boundary and acceptance criteria.

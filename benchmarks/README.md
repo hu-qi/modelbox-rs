@@ -147,3 +147,14 @@ Both hashes are published independently by the [Guild AI MNIST resource configur
 Run summary includes exact `sample_count`, overall `accuracy`, `correct`, per-digit total/correct/recall, 10×10 confusion matrix, a full mistake count and the first 50 indexed errors. To keep CI logs bounded, `predicted_labels` is `null` for more than 100 samples. The benchmark has no timing instrumentation: it measures **correctness**, not model load time, FPS, or production throughput.
 
 The existing 10-row CSV mode and its fixed 10/10 CI regression remain unchanged. **Verified full-set result:** Ubuntu Linux x86_64 and native macOS ARM64 ONNX CPU jobs each classified exactly **9,890 / 10,000 (98.90%)** images, with the same confusion matrix and 110 mistakes. The full report is in [baselines/2026-10-11-mnist-full-10000-ci.json](baselines/2026-10-11-mnist-full-10000-ci.json). After observing that cross-platform baseline, we set a pragmatic CI acceptance gate of **9,850 correct (98.50%)**, allowing a 40-image drift margin. This is not a guarantee of accuracy outside MNIST, nor a confidence interval.
+
+## Experimental YOLOv8 / YOLO11 NMS-free output adapter
+
+The CLI command `postprocess-yolo` accepts a raw `TensorF32` or Graph inference output whose shape matches `[1,4+classes,candidates]`. It assumes already activated, per-class confidence scores and `xywh` boxes **in the model input canvas**. It is *not* a universal YOLO decoder. Default thresholds: confidence 0.25, class-aware IoU NMS 0.45, max detections 300. Candidates are sorted by score with anchor-order tie breaks; the top 3,000 candidates enter NMS. One class (argmax) is chosen per anchor.
+
+```bash
+cargo run -p modelbox-cli -- \
+  postprocess-yolo examples/yolo-raw-output.json 640 640 0.25 0.5 10
+```
+
+Three synthetic anchors produce two detections: the lower-scoring same-class overlapping candidate is suppressed, while a co-located candidate in a different class remains. The test covers clipping, thresholds, maximum detections, input validation and the Graph result wrapper. It **does not** call ONNX Runtime. A real detector release will need a pinned trained ONNX model, licensed test images, explicit channel ordering, image decoding/letterbox preprocessing, projection to original-image coordinates, an independent reference output and labeled detection accuracy metrics (e.g. mAP).
