@@ -203,3 +203,14 @@ cargo run --release -p modelbox-cli --features onnx -- \
 The model and photograph are **not bundled**: the download script validates the model's published SHA256 and the sample photograph's upstream Git blob hash. Both are kept under ignored `benchmarks/datasets/`. This model is from [Hugging Face webml/yolov8n](https://huggingface.co/webml/yolov8n) and based on Ultralytics weights, which have **AGPL-3.0 obligations**; commercial use requires an appropriate license. The Ultralytics bus image is also a third-party asset.
 
 The demo emits COCO labels, confidence scores, and `xyxy` pixel coordinates for the actual input image. CI checks for *person* and *bus* detections on the real sample on Linux and Apple Silicon. Triangle image resizing is only an approximation of OpenCV's interpolation; this is **functional real-model acceptance, not independent box-coordinate equality, production latency, mAP, or unrestricted licensing**.
+
+### Numeric regression for real YOLOv8n photo detections
+
+The Mac mini's release-mode `detect-yolov8` output on the pinned `bus.jpg` photograph is now archived in `benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json`: five detections, including four persons and one bus, with raw COCO classes, scores, boxes and candidate IDs. It is an **observed first-party fixture**, not manually annotated ground truth or a second independent model implementation.
+
+On Linux and Apple Silicon, CI compares actual detections with the observed baseline by class and spatial box matching, rather than relying on prediction ordering. It checks that all five objects survive postprocessing, source-image boxes are valid, and numeric drift remains within **8 original-image pixels per box coordinate** and **0.03 absolute class-confidence points**. The gates are tolerance-based engineering regression checks; a separately licensed labeled dataset and independent reference inference remain necessary for mAP and accuracy claims.
+
+```bash
+# After running the command in the YOLO demo, redirect its output to yolo-detections.json.
+python3 scripts/verify-yolov8n-demo.py yolo-detections.json
+```

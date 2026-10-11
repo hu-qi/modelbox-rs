@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-11",
+  "recorded_from": "User's Apple Silicon Mac mini release-mode CLI detect-yolov8 stdout",
+  "nature": "observed first-party numeric regression fixture; NOT independent object-detection ground truth or external inference oracle",
+  "model_source": "https://huggingface.co/webml/yolov8n/resolve/main/onnx/yolov8n.onnx",
+  "model_sha256": "190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d",
+  "image_source": "https://raw.githubusercontent.com/ultralytics/assets/main/im/bus.jpg",
+  "image_git_blob": "40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe",
+  "arguments": {
+    "confidence_threshold": 0.25,
+    "iou_threshold": 0.45
+  },
+  "expected": {
+    "model_input_shape": [
+      1,
+      3,
+      640,
+      640
+    ],
+    "model_output_shape": [
+      1,
+      84,
+      8400
+    ],
+    "source_image_width": 810,
+    "source_image_height": 1080,
+    "coordinate_space": "source_image_pixels",
+    "letterbox": {
+      "gain": 0.5925925970077515,
+      "left": 80,
+      "top": 0,
+      "scaled_width": 480,
+      "scaled_height": 640,
+      "padding_rgb": [
+        114,
+        114,
+        114
+      ]
+    },
+    "detection_count": 5,
+    "detections": [
+      {
+        "candidate_index": 8256,
+        "class_id": 0,
+        "class_name": "person",
+        "confidence": 0.895917534828186,
+        "xyxy": [
+          670.997314453125,
+          384.69635009765625,
+          810,
+          879.90380859375
+        ]
+      },
+      {
+        "candidate_index": 8227,
+        "class_id": 0,
+        "class_name": "person",
+        "confidence": 0.8827041387557983,
+        "xyxy": [
+          221.52659606933594,
+          407.1952819824219,
+          343.73883056640625,
+          856.2277221679688
+        ]
+      },
+      {
+        "candidate_index": 8245,
+        "class_id": 0,
+        "class_name": "person",
+        "confidence": 0.8739768862724304,
+        "xyxy": [
+          50.22609329223633,
+          397.728515625,
+          244.42063903808594,
+          905.348876953125
+        ]
+      },
+      {
+        "candidate_index": 8189,
+        "class_id": 5,
+        "class_name": "bus",
+        "confidence": 0.8366718888282776,
+        "xyxy": [
+          31.250885009765625,
+          231.17832946777344,
+          800.7401733398438,
+          777.5858764648438
+        ]
+      },
+      {
+        "candidate_index": 7445,
+        "class_id": 0,
+        "class_name": "person",
+        "confidence": 0.4251939058303833,
+        "xyxy": [
+          0.4739398956298828,
+          549.1375732421875,
+          59.350425720214844,
+          868.0906982421875
+        ]
+      }
+    ]
+  },
+  "ci_tolerances": {
+    "max_coordinate_absolute_error_px": 8,
+    "max_confidence_absolute_error": 0.03
+  },
+  "notes": [
+    "Linux/macOS ARM64 CI previously verified exact five detections and COCO class presence, but did not record coordinate-level matching.",
+    "Candidate indices are preserved for traceability but are not cross-platform acceptance criteria.",
+    "This test is not an mAP benchmark, and box coordinates are not verified against manually labeled objects."
+  ]
+}

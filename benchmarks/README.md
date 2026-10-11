@@ -171,3 +171,9 @@ cargo run --release -p modelbox-cli --features onnx -- \
 For provenance, the external model is `webml/yolov8n/onnx/yolov8n.onnx`, 12.8 MB, SHA256 `190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d`; the photo is `ultralytics/assets/im/bus.jpg`, Git blob SHA1 `40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe`. Model weights have **AGPL-3.0 usage restrictions**. Neither external binary is committed.
 
 This stage measures correctness of the file→image→CHW→Graph ONNX CPU→raw tensor→NMS→image-box pipeline on a specific sample photograph. It is **not** a model FPS/mAP claim, and triangle-resize interpolation is not numerically identical to Ultralytics' OpenCV path.
+
+## YOLOv8n observed Mac mini box regression
+
+The original **release-mode Mac mini** detection output is archived at [baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json](baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json). It recorded five objects (four `person`, one `bus`), including bounding boxes in the **810×1080 original-image** coordinate space and model output shape `[1,84,8400]`.
+
+Linux and native macOS ARM64 CI now run [../scripts/verify-yolov8n-demo.py](../scripts/verify-yolov8n-demo.py) against this Mac observation; detections are class-and-location matched, then required to be within ±8 px per box corner and ±0.03 confidence, all boxes in bounds. Anchors and array ordering are not assumed equal across runtimes. This is a first-party **regression** golden, not independent reference inference, annotated ground-truth labels or mAP. The image/library license obligations remain unchanged.
