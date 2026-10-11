@@ -34,7 +34,8 @@
 - [x] Experimental raw YOLOv8/YOLO11 one-output detection postprocessing: coordinate conversion, confidence filtering, class-aware NMS and synthetic regression fixture (no model inference claim).
 - [x] Real pretrained YOLOv8n ONNX + JPEG/PNG photo ingestion, CHW letterbox preprocessing, NMS and source-coordinate projection (checksum-verified external model/image, smoke test; no mAP claim).
 - [x] Real-model YOLOv8n `bus.jpg` observed Mac release detection-box and score regression archived with numeric tolerance gates on Linux and Apple Silicon (first-party golden, not an independent accuracy reference).
-- [ ] Independent operator-level inference oracle, independently annotated real detection boxes and mAP baseline on labeled dataset, and representative performance baselines.
+- [x] Experimental YOLOv8n single-file-to-detections stage benchmark (decode, preprocessing, Graph/ONNX CPU, NMS/project, total), with same-session reuse, stage reconciliation and cross-OS smoke.
+- [ ] Independent operator-level inference oracle, independently annotated real detection boxes and mAP baseline on labeled dataset, and a measured repeatable Mac Release performance baseline.
 
 
 - ONNX Runtime CPU backend and tensor value design.

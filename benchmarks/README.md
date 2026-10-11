@@ -177,3 +177,17 @@ This stage measures correctness of the file→image→CHW→Graph ONNX CPU→raw
 The original **release-mode Mac mini** detection output is archived at [baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json](baselines/2026-10-11-macos-arm64-yolov8n-bus-observed.json). It recorded five objects (four `person`, one `bus`), including bounding boxes in the **810×1080 original-image** coordinate space and model output shape `[1,84,8400]`.
 
 Linux and native macOS ARM64 CI now run [../scripts/verify-yolov8n-demo.py](../scripts/verify-yolov8n-demo.py) against this Mac observation; detections are class-and-location matched, then required to be within ±8 px per box corner and ±0.03 confidence, all boxes in bounds. Anchors and array ordering are not assumed equal across runtimes. This is a first-party **regression** golden, not independent reference inference, annotated ground-truth labels or mAP. The image/library license obligations remain unchanged.
+
+## Full YOLOv8n image-to-box stage timings
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-detect-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 30 5
+```
+
+This reuses **one loaded ONNX session and compiled Graph**. Each timed iteration intentionally reads `bus.jpg` afresh, decodes it into RGB, resizes/letterboxes into CHW f32 tensor, invokes the real three-node Graph, then decodes YOLO outputs, performs class-aware NMS and undoes the Letterbox projection. A single `Instant` timeline marks boundaries; the four stage durations must sum exactly to total duration for every iteration (recorded as `max_stage_total_reconciliation_delta_ns = 0`). Measured request wall times exclude model/session initialization, graph compilation, logging and JSON serialization; include model CPU computation, graph scheduling/worker lifetime, heap copies in the normal path and OS-cached file I/O.
+
+Report `min/mean/p50/p95/max` for each stage and for total separately. The sum of per-stage means equals the mean total (subject to tiny floating rounding). Percentiles are **not additive** across stages. Sequential reciprocal-of-mean estimated images/sec is explicitly not a concurrent or camera-stream throughput metric; do not compare against earlier batch throughput workloads as if identical.
+
+CI runs a short **debug-profile smoke test (2 iterations, 1 warmup)** only to verify the benchmark works on Linux and Apple Silicon. A Mac mini **Release** baseline must come from the user's real command output, with hardware, Rust version and power state noted, before any performance claims.

@@ -9,6 +9,8 @@ mod bench;
 #[cfg(feature = "onnx")]
 mod bench_compare;
 #[cfg(feature = "onnx")]
+mod bench_yolo;
+#[cfg(feature = "onnx")]
 mod mnist_eval;
 #[cfg(feature = "onnx")]
 mod mnist_idx;
@@ -38,6 +40,7 @@ fn usage() -> &'static str {
   modelbox bench-batch <model.onnx> <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-overhead <tensor.json> [items] [warmup]   (requires --features onnx)
   modelbox bench-compare <model.onnx> <tensor.json> [items] [rounds] [warmup]   (requires --features onnx)
+  modelbox bench-detect-yolov8 <yolov8n.onnx> <image.jpg|png> [iterations] [warmup]   (requires --features onnx)
 
 Text examples use core.input; ONNX inference is an opt-in feature.
 Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
@@ -70,6 +73,8 @@ fn execute() -> Result<(), FlowError> {
         "postprocess-yolo" => yolo_post::run(args.collect())?,
         #[cfg(feature = "onnx")]
         "detect-yolov8" => yolo_infer::run(args.collect())?,
+        #[cfg(feature = "onnx")]
+        "bench-detect-yolov8" => bench_yolo::run(args.collect())?,
         "demo" => {
             let graph = parse_graph(DEMO)?;
             let inputs: Vec<_> = args.map(Value::Text).collect();
