@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use serde::Serialize;
 use serde_json::Value as JsonValue;
 
 use crate::{DataType, FlowError, Result, Value};
@@ -200,5 +201,79 @@ impl FlowUnit for Builtin {
             }
         };
         Ok(vec![Value::Text(value)])
+    }
+}
+
+ 
+/// Read-only discovery data for Studio; runtime compilation remains authoritative.
+/// A missing config schema does NOT mean that arbitrary configs are accepted.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct FlowUnitDescriptor {
+    pub name: String,
+    pub is_source: bool,
+    pub inputs: Vec<PortDescriptor>,
+    pub outputs: Vec<PortDescriptor>,
+    pub required_string_config_keys: Vec<String>,
+    pub config_schema_complete: bool,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct PortDescriptor {
+    pub name: String,
+    pub data_type: DataType,
+}
+
+impl FlowRegistry {
+    /// Stable ordering, based on the actual registered implementations.
+    /// Custom units have no introspectable config schema in today's FlowUnit trait.
+    pub fn descriptors(&self) -> Vec<FlowUnitDescriptor> {
+        let mut descriptors: Vec<_> = self.units.values().map(|unit| {
+            let ports = |defs: &[PortDef]| defs.iter().map(|p| PortDescriptor {
+                name: p.name.to_owned(),
+                data_type: p.data_type,
+            }).collect();
+            FlowUnitDescriptor {
+                name: unit.name().to_owned(),
+                is_source: unit.is_source(),
+                inputs: ports(unit.inputs()),
+                outputs: ports(unit.outputs()),
+                required_string_config_keys: if unit.name() == "text.prefix" {
+                    vec!["prefix".to_owned()]
+                } else {
+                    Vec::new()
+                },
+                // No FlowUnit can currently promise an exhaustive config contract.
+                config_schema_complete: false,
+            }
+        }).collect();
+        descriptors.sort_by(|a, b| a.name.cmp(&b.name));
+        descriptors
+    }
+}
+
+#[cfg(test)]
+mod studio_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn builtin_catalog_is_sorted_and_matches_registered_ports() {
+        let registry = FlowRegistry::default();
+        let list = registry.descriptors();
+        assert_eq!(list.len(), 7);
+        assert!(list.windows(2).all(|pair| pair[0].name < pair[1].name));
+        let prefix = list.iter().find(|d| d.name == "text.prefix").unwrap();
+        assert_eq!(prefix.inputs[0].data_type, DataType::Text);
+        assert_eq!(prefix.required_string_config_keys, ["prefix"]);
+        assert!(!prefix.config_schema_complete);
+        let tensor = list.iter().find(|d| d.name == "tensor.input").unwrap();
+        assert!(tensor.is_source);
+        assert_eq!(tensor.outputs[0].data_type, DataType::TensorF32);
+        let encoded = serde_json::to_value(&list).unwrap();
+        assert_eq!(encoded.iter().find(|x| x["name"] == "tensor.input").unwrap()["outputs"][0]["data_type"], "tensor_f32");
+    }
+
+    #[test]
+    fn empty_catalog_is_empty() {
+        assert!(FlowRegistry::empty().descriptors().is_empty());
     }
 }
