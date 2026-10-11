@@ -16,11 +16,11 @@ const PRE_NMS_LIMIT: usize = 3_000;
 const MAX_DETECTIONS: usize = 1_000;
 
 #[derive(Debug, Clone, PartialEq)]
-struct Detection {
-    class_id: usize,
-    confidence: f32,
-    xyxy: [f32; 4],
-    anchor: usize,
+pub(super) struct Detection {
+    pub(super) class_id: usize,
+    pub(super) confidence: f32,
+    pub(super) xyxy: [f32; 4],
+    pub(super) anchor: usize,
 }
 
 fn invalid(msg: impl std::fmt::Display) -> FlowError {
@@ -43,7 +43,7 @@ fn overlap(a: &Detection, b: &Detection) -> f32 {
     }
 }
 
-fn decode(
+pub(super) fn decode(
     tensor: &TensorF32,
     width: usize,
     height: usize,

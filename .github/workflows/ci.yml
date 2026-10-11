@@ -74,6 +74,16 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
       - name: Labeled MNIST CSV parser tests
         run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
+      - name: Download verified pretrained YOLOv8n and bus photograph
+        shell: bash
+        run: bash scripts/fetch-yolov8n-demo.sh
+      - name: YOLOv8n actual photograph inference and box projection
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- detect-yolov8 \
+            benchmarks/datasets/detection/yolov8n.onnx \
+            benchmarks/datasets/detection/bus.jpg 0.25 0.45 > yolo-detections.json
+          python3 -c 'import json; d=json.load(open("yolo-detections.json")); names={x["class_name"] for x in d["detections"]}; assert {"person", "bus"} <= names, (names, d["detections"]); assert d["model_output_shape"] == [1,84,8400]; assert all(0 <= v <= d["source_image_width"] if i % 2 == 0 else 0 <= v <= d["source_image_height"] for x in d["detections"] for i,v in enumerate(x["xyxy"])); print("Real YOLOv8n detected person and bus; valid source-image boxes:",d["detection_count"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
@@ -122,6 +132,16 @@ jobs:
         run: cargo run -p modelbox-cli --features onnx -- eval-mnist-csv examples/mnist.onnx benchmarks/fixtures/mnist-test-10.csv 10
       - name: Labeled MNIST CSV parser tests
         run: cargo test -p modelbox-cli --features onnx mnist_eval::tests
+      - name: Download verified pretrained YOLOv8n and bus photograph
+        shell: bash
+        run: bash scripts/fetch-yolov8n-demo.sh
+      - name: YOLOv8n actual photograph inference and box projection
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- detect-yolov8 \
+            benchmarks/datasets/detection/yolov8n.onnx \
+            benchmarks/datasets/detection/bus.jpg 0.25 0.45 > yolo-detections.json
+          python3 -c 'import json; d=json.load(open("yolo-detections.json")); names={x["class_name"] for x in d["detections"]}; assert {"person", "bus"} <= names, (names, d["detections"]); assert d["model_output_shape"] == [1,84,8400]; assert all(0 <= v <= d["source_image_width"] if i % 2 == 0 else 0 <= v <= d["source_image_height"] for x in d["detections"] for i,v in enumerate(x["xyxy"])); print("Real YOLOv8n detected person and bus; valid source-image boxes:",d["detection_count"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels

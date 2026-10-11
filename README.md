@@ -188,3 +188,18 @@ cargo run -p modelbox-cli -- \
 ```
 
 The input is either a raw `TensorF32` JSON file or a complete serialized Graph `infer` result containing `outputs.result.out[0].value`. No trained YOLO ONNX weights are bundled, no camera input is processed, and **no real object detection inference, letterbox correction, or mAP is claimed** by this fixture. The supplied fixture contains three intentionally synthetic candidates exercising box conversion, confidence gating and same-class NMS. YOLOv5 objectness outputs, YOLO end-to-end NMS exports, segmentation, pose and multi-output detectors require separate adapters. See `docs/object-detection.md` for the phase boundary and acceptance criteria.
+
+### Real ONNX detection: JPEG/PNG → YOLOv8n CPU → labeled boxes
+
+The optional `detect-yolov8` command runs a **real, pretrained YOLOv8n detection model** through the existing one-input/one-output `onnx.cpu` Graph. It decodes a JPEG or PNG image, letterboxes to 640×640 with 114 RGB padding, builds a normalized `[1,3,640,640]` f32 CHW tensor, checks for the expected `[1,84,8400]` COCO80 output, performs class-aware NMS and projects boxes back to **original photo coordinates**.
+
+```bash
+bash scripts/fetch-yolov8n-demo.sh
+cargo run --release -p modelbox-cli --features onnx -- \
+  detect-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 0.25 0.45
+```
+
+The model and photograph are **not bundled**: the download script validates the model's published SHA256 and the sample photograph's upstream Git blob hash. Both are kept under ignored `benchmarks/datasets/`. This model is from [Hugging Face webml/yolov8n](https://huggingface.co/webml/yolov8n) and based on Ultralytics weights, which have **AGPL-3.0 obligations**; commercial use requires an appropriate license. The Ultralytics bus image is also a third-party asset.
+
+The demo emits COCO labels, confidence scores, and `xyxy` pixel coordinates for the actual input image. CI checks for *person* and *bus* detections on the real sample on Linux and Apple Silicon. Triangle image resizing is only an approximation of OpenCV's interpolation; this is **functional real-model acceptance, not independent box-coordinate equality, production latency, mAP, or unrestricted licensing**.

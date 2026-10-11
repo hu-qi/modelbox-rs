@@ -32,7 +32,8 @@
 - [x] Small independent-label MNIST test subset (10 rows) and inference/evaluation CLI with per-example predictions/confusion matrix (Linux and macOS ARM64 each observed 10/10; gated as fixed regression).
 - [x] Complete official 10,000-image MNIST IDX test accuracy baseline on Linux x86_64 and native macOS ARM64: 9,890/10,000 = 98.90%, identical confusion matrices; CI gate >=9,850/10,000.
 - [x] Experimental raw YOLOv8/YOLO11 one-output detection postprocessing: coordinate conversion, confidence filtering, class-aware NMS and synthetic regression fixture (no model inference claim).
-- [ ] Independent operator-level inference oracle, real ONNX object-detection model/image fixture with reference boxes and mAP, and representative performance baselines.
+- [x] Real pretrained YOLOv8n ONNX + JPEG/PNG photo ingestion, CHW letterbox preprocessing, NMS and source-coordinate projection (checksum-verified external model/image, smoke test; no mAP claim).
+- [ ] Independent operator-level inference oracle, independent real detection boxes and mAP baseline on labeled dataset, and representative performance baselines.
 
 
 - ONNX Runtime CPU backend and tensor value design.
