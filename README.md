@@ -227,3 +227,17 @@ cargo run --release -p modelbox-cli --features onnx -- \
 ```
 
 Output includes each stage's min, p50, p95, max and mean milliseconds, **total end-to-end** timings, observed detection count, a numeric detection fingerprint, and a per-request stage-versus-total timestamp reconciliation check. Defaults: 20 measured iterations and 5 warmups; allowed 1–200 iterations and 0–100 warmups. The first model/session load and Graph compilation are excluded. **Each independent p50/p95 cannot be summed to infer total p50/p95.** These numbers describe repeated sequential requests on the same OS cache, not steady-state video FPS or GPU/NPU performance. The CI run is only a debug-build functional smoke and must not be used as the Mac mini Release performance baseline.
+
+### Mac mini Release profiling baseline and paired Graph/ONNX control
+
+The **2026-10-11 Mac mini Release** result for the exact pinned `bus.jpg` and YOLOv8n model is saved under [benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-release-stages.json](benchmarks/baselines/2026-10-11-macos-arm64-yolov8n-release-stages.json): 30 measured sequential frames, 5 warmups, total mean **28.9208 ms**, P50 **28.68 ms**, P95 **30.3207 ms**, and an estimated **34.58 sequential requests/s**. Model load and Graph compile were excluded.
+
+The most expensive measured stage was Graph+ONNX CPU at **19.8086 ms** (68.49% of total), but **this is not purely inference-kernel time**. To distinguish descriptive direct FlowUnit costs from Graph integration, use the paired control below:
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 21 5
+```
+
+Both paths use **one loaded ONNX session**, the same preprocessed RGB/CHW tensor, and alternating call order; each pair checks the full output tensor elementwise for differences larger than `1e-4`. The comparison excludes image decoding, preprocessing and NMS *inside its timed intervals* and reports descriptive Graph vs direct mean/p50/p95. The difference is **not pure scheduler overhead**: input ownership, worker creation, channels and terminal captures are additional differences.

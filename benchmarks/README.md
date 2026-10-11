@@ -191,3 +191,29 @@ This reuses **one loaded ONNX session and compiled Graph**. Each timed iteration
 Report `min/mean/p50/p95/max` for each stage and for total separately. The sum of per-stage means equals the mean total (subject to tiny floating rounding). Percentiles are **not additive** across stages. Sequential reciprocal-of-mean estimated images/sec is explicitly not a concurrent or camera-stream throughput metric; do not compare against earlier batch throughput workloads as if identical.
 
 CI runs a short **debug-profile smoke test (2 iterations, 1 warmup)** only to verify the benchmark works on Linux and Apple Silicon. A Mac mini **Release** baseline must come from the user's real command output, with hardware, Rust version and power state noted, before any performance claims.
+
+## Mac mini YOLOv8n Release baseline (2026-10-11)
+
+The user executed the pinned **Release**, fully warmed `bench-detect-yolov8` with 30 measured iterations and five warmups on an Apple Silicon Mac mini; full reported statistics are archived at [baselines/2026-10-11-macos-arm64-yolov8n-release-stages.json](baselines/2026-10-11-macos-arm64-yolov8n-release-stages.json).
+
+| Sequential stage | Mean | p50 | p95 | % of mean total |
+|---|---:|---:|---:|---:|
+| JPEG file read/decode + RGB | 4.4717 ms | 4.4655 ms | 4.5776 ms | 15.46% |
+| Letterbox resize + CHW f32 | 4.1538 ms | 4.1471 ms | 4.2340 ms | 14.36% |
+| Rust Graph + ONNX CPU | 19.8086 ms | 19.6575 ms | 20.9635 ms | 68.49% |
+| NMS + source-box projection | 0.4868 ms | 0.4861 ms | 0.5090 ms | 1.68% |
+| **File to detections (true total)** | **28.9208 ms** | **28.68 ms** | **30.3207 ms** | **100%** |
+
+The stage sum equals the total for every run (max reconciliation delta 0 ns), and the last output contained 5 detections with numeric fingerprint `9498.732394576073`. The reciprocal of total mean is **34.58 images/sec** under sequential, OS-cached requests; it is *not* live camera throughput. The specific Apple Silicon CPU model, thread count and thermal state were not provided and must not be fabricated.
+
+### Direct ONNX vs Graph, same session: paired control
+
+```bash
+cargo run --release -p modelbox-cli --features onnx -- \
+  bench-compare-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 21 5
+```
+
+This loads the ONNX model **only once** and creates one Graph plan. Each measured round alternates the direct FlowUnit and Graph invocation ordering on the **same** preprocessed, read-only input. Excludes input tensor construction, image decode/Letterbox, NMS, model loading and graph plan compilation from the two timed intervals. Numerically checks all `[1,84,8400]` output elements (allowed max absolute difference `1e-4`), then outside timing confirms the expected five objects. Reports descriptive direct-vs-Graph duration distributions and individual paired gaps.
+
+`Graph minus direct` is **not strictly scheduler overhead**; these paths differ in worker startup, channel traffic, memory ownership and output handling. No numerical performance assertions run in cloud CI, only functionality smoke tests. A hardware-specific performance claim requires the user's Mac mini Release result.

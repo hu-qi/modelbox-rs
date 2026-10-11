@@ -92,6 +92,13 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 2 1 > yolo-stages.json
           python3 -c 'import json; r=json.load(open("yolo-stages.json")); assert r["measured_iterations"] == 2; assert r["warmup_iterations"] == 1; assert r["max_stage_total_reconciliation_delta_ns"] == 0; assert r["last_detection_count"] == 5; assert all(r["latency_ms"][s]["mean"] > 0 for s in ("decode_file_and_rgb", "letterbox_and_chw", "graph_including_onnx_cpu", "nms_and_project_boxes", "end_to_end")); print("YOLO stage timing smoke:",r["profile"],r["latency_ms"]["end_to_end"]["mean"])'
+      - name: YOLOv8n paired Graph vs direct ONNX CPU functional smoke
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- bench-compare-yolov8 \
+            benchmarks/datasets/detection/yolov8n.onnx \
+            benchmarks/datasets/detection/bus.jpg 3 1 > yolo-graph-direct.json
+          python3 -c 'import json; d=json.load(open("yolo-graph-direct.json")); assert d["measured_pairs"] == 3; assert d["warmup_pairs"] == 1; assert d["last_detection_count"] == 5; assert d["max_output_element_abs_diff"] <= 0.0001; assert d["graph_ms"]["mean"] > 0 and d["direct_flowunit_ms"]["mean"] > 0; print("Graph vs direct smoke:", d["graph_ms"]["mean"], d["direct_flowunit_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels
@@ -158,6 +165,13 @@ jobs:
             benchmarks/datasets/detection/yolov8n.onnx \
             benchmarks/datasets/detection/bus.jpg 2 1 > yolo-stages.json
           python3 -c 'import json; r=json.load(open("yolo-stages.json")); assert r["measured_iterations"] == 2; assert r["warmup_iterations"] == 1; assert r["max_stage_total_reconciliation_delta_ns"] == 0; assert r["last_detection_count"] == 5; assert all(r["latency_ms"][s]["mean"] > 0 for s in ("decode_file_and_rgb", "letterbox_and_chw", "graph_including_onnx_cpu", "nms_and_project_boxes", "end_to_end")); print("YOLO stage timing smoke:",r["profile"],r["latency_ms"]["end_to_end"]["mean"])'
+      - name: YOLOv8n paired Graph vs direct ONNX CPU functional smoke
+        shell: bash
+        run: |
+          cargo run -p modelbox-cli --features onnx -- bench-compare-yolov8 \
+            benchmarks/datasets/detection/yolov8n.onnx \
+            benchmarks/datasets/detection/bus.jpg 3 1 > yolo-graph-direct.json
+          python3 -c 'import json; d=json.load(open("yolo-graph-direct.json")); assert d["measured_pairs"] == 3; assert d["warmup_pairs"] == 1; assert d["last_detection_count"] == 5; assert d["max_output_element_abs_diff"] <= 0.0001; assert d["graph_ms"]["mean"] > 0 and d["direct_flowunit_ms"]["mean"] > 0; print("Graph vs direct smoke:", d["graph_ms"]["mean"], d["direct_flowunit_ms"]["mean"])'
       - name: MNIST IDX parser unit tests
         run: cargo test -p modelbox-cli --features onnx mnist_idx::tests
       - name: Download verified official MNIST test images and labels

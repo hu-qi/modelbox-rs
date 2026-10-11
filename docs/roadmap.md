@@ -35,7 +35,9 @@
 - [x] Real pretrained YOLOv8n ONNX + JPEG/PNG photo ingestion, CHW letterbox preprocessing, NMS and source-coordinate projection (checksum-verified external model/image, smoke test; no mAP claim).
 - [x] Real-model YOLOv8n `bus.jpg` observed Mac release detection-box and score regression archived with numeric tolerance gates on Linux and Apple Silicon (first-party golden, not an independent accuracy reference).
 - [x] Experimental YOLOv8n single-file-to-detections stage benchmark (decode, preprocessing, Graph/ONNX CPU, NMS/project, total), with same-session reuse, stage reconciliation and cross-OS smoke.
-- [ ] Independent operator-level inference oracle, independently annotated real detection boxes and mAP baseline on labeled dataset, and a measured repeatable Mac Release performance baseline.
+- [x] Real Mac mini Release stage baseline: 28.9208 ms mean file→YOLOv8n detections (30 timed frames, 5 warmups), with stage shares and strict timing reconciliation archived.
+- [ ] Paired direct ONNX FlowUnit vs Graph model-specific Release baseline to distinguish integration cost from model compute.
+- [ ] Independent operator-level inference oracle and labeled detection dataset mAP baseline.
 
 
 - ONNX Runtime CPU backend and tensor value design.
