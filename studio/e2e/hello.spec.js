@@ -46,4 +46,8 @@ test('profiled node metrics come from real Rust Runtime', async ({ page }) => {
   await expect(page.getByLabel('节点处理耗时')).toContainText('prefix');
   await expect(page.getByLabel('节点处理耗时')).toContainText('result');
   await expect(page.getByLabel('节点处理耗时')).toContainText('不含调度及队列');
+  await expect(page.locator('.react-flow__node').filter({ hasText: 'text.uppercase' })).toContainText('已处理 1 次');
+  await expect(page.locator('.react-flow__node').filter({ hasText: 'core.input' })).toContainText('源节点');
+  await page.getByRole('textbox', { name: 'Graph name' }).fill('modified');
+  await expect(page.locator('.execution-state')).toHaveCount(0);
 });
