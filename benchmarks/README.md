@@ -158,3 +158,16 @@ cargo run -p modelbox-cli -- \
 ```
 
 Three synthetic anchors produce two detections: the lower-scoring same-class overlapping candidate is suppressed, while a co-located candidate in a different class remains. The test covers clipping, thresholds, maximum detections, input validation and the Graph result wrapper. It **does not** call ONNX Runtime. A real detector release will need a pinned trained ONNX model, licensed test images, explicit channel ordering, image decoding/letterbox preprocessing, projection to original-image coordinates, an independent reference output and labeled detection accuracy metrics (e.g. mAP).
+
+## Actual YOLOv8n CPU photograph inference
+
+```bash
+bash scripts/fetch-yolov8n-demo.sh
+cargo run --release -p modelbox-cli --features onnx -- \
+  detect-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 0.25 0.45
+```
+
+For provenance, the external model is `webml/yolov8n/onnx/yolov8n.onnx`, 12.8 MB, SHA256 `190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d`; the photo is `ultralytics/assets/im/bus.jpg`, Git blob SHA1 `40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe`. Model weights have **AGPL-3.0 usage restrictions**. Neither external binary is committed.
+
+This stage measures correctness of the file→image→CHW→Graph ONNX CPU→raw tensor→NMS→image-box pipeline on a specific sample photograph. It is **not** a model FPS/mAP claim, and triangle-resize interpolation is not numerically identical to Ultralytics' OpenCV path.

@@ -36,3 +36,18 @@ This synthetic fixture contains three candidates and two classes. The adapter sh
 5. Measure full file/image-to-detection latency and throughput; the synthetic decoder test is not a model inference or production-stream benchmark.
 
 Current `onnx.cpu` is restricted to *exactly one f32 input and one f32 output*. Multi-output detection models require an adapter/runtime design change before they can run.
+
+## First trained model and actual photograph
+
+```bash
+bash scripts/fetch-yolov8n-demo.sh
+cargo run --release -p modelbox-cli --features onnx -- \
+  detect-yolov8 benchmarks/datasets/detection/yolov8n.onnx \
+  benchmarks/datasets/detection/bus.jpg 0.25 0.45
+```
+
+The downloader fetches [webml/yolov8n ONNX](https://huggingface.co/webml/yolov8n/blob/main/onnx/yolov8n.onnx) (model SHA256 `190ba5f1e61411a001683e349d6b2cdb0804c0dc67a5e34cd8ff6fd00ee54b4d`) and [Ultralytics bus.jpg](https://github.com/ultralytics/assets/blob/main/im/bus.jpg) (Git blob SHA1 `40eaaf5c330d0c498fbe1dcacf9bb8bf566797fe`). Downloaded files are not tracked in Git. Model weights have AGPL-3.0 obligations; see the upstream license and obtain commercial licensing where applicable.
+
+This narrow end-to-end adapter uses the trained 80-class 640×640 YOLOv8n exporter with a `[1,84,8400]` NMS-free output. It accepts JPEG/PNG input, RGB conversion, 114-letterbox preprocessing, CHW /255 normalization, Rust Graph / ONNX Runtime CPU inference, existing class-aware NMS, and inverse letterbox projection. Outputs include COCO class labels, confidence scores and boxes in **original image pixel space**.
+
+The interpolation is a triangle filter, which approximates but may differ from OpenCV's bilinear implementation. The CI smoke on one sample checks for person+bus; **it does not establish independent reference box agreement or mAP**. Multi-output models and Ultralytics end-to-end NMS exports remain unsupported.
