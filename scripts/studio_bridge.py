@@ -5,6 +5,7 @@ import json
 import pathlib
 import subprocess
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HOST, PORT = "127.0.0.1", 8765
@@ -20,6 +21,7 @@ def cargo(*args):
 
 
 def invoke(action, payload):
+    started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
     elif action in ("validate", "run"):
@@ -40,13 +42,18 @@ def invoke(action, payload):
     else:
         return 404, {"error": "unknown action"}
 
+    # End-to-end CLI invocation time, including process startup and (if cold)
+    # compilation. This is NOT inference latency or per-node execution time.
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
+    diagnostics = {"elapsed_ms": elapsed_ms, "scope": "bridge_cli_wall_time"}
     if result.returncode:
-        return 422, {"error": (result.stderr or result.stdout)[-4096:]}
+        return 422, {"error": (result.stderr or result.stdout)[-4096:], "diagnostics": diagnostics}
     if action == "catalog":
         return 200, json.loads(result.stdout)
     if action == "run":
-        return 200, json.loads(result.stdout)
-    return 200, {"message": result.stdout.strip()}
+        output = json.loads(result.stdout)
+        return 200, {"result": output, "diagnostics": diagnostics}
+    return 200, {"message": result.stdout.strip(), "diagnostics": diagnostics}
 
 
 class Handler(BaseHTTPRequestHandler):
