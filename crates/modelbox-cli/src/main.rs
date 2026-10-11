@@ -139,7 +139,8 @@ fn execute() -> Result<(), FlowError> {
             if args.next().as_deref() != Some("--json") || args.next().is_some() {
                 return Err(FlowError::Execution(usage().to_owned()));
             }
-            println!("{}", serde_json::to_string_pretty(&modelbox_core::FlowRegistry::default().descriptors())?);
+            let catalog = modelbox_core::FlowRegistry::default().descriptors();
+            println!("{}", serde_json::to_string_pretty(&catalog)?);
         }
         "validate" => {
             let path = args
