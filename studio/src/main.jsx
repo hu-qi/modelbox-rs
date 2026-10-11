@@ -31,6 +31,7 @@ function App(){
   const [catalog,setCatalog]=useState([]),[nodes,setNodes]=useState(xyNodes(example)),[edges,setEdges]=useState(xyEdges(example));
   const [name,setName]=useState(example.name),[capacity,setCapacity]=useState(example.queue_capacity),[selected,setSelected]=useState(null);
   const [input,setInput]=useState('hello modelbox'),[status,setStatus]=useState('未连接 Runtime'),[busy,setBusy]=useState(false);
+  const [configDraft,setConfigDraft]=useState('null');
   useEffect(()=>{fetch('/api/catalog').then(r=>r.json()).then(d=>{if(!Array.isArray(d))throw Error(d.error||'invalid catalog');setCatalog(d);setStatus('Rust FlowUnit Registry 已连接');}).catch(e=>setStatus('连接失败：'+e.message));},[]);
   const descriptors=useMemo(()=>Object.fromEntries(catalog.map(x=>[x.name,x])),[catalog]);
   const flowNodes=useMemo(()=>nodes.map(n=>({...n,data:{...n.data,descriptor:descriptors[n.data.unit]}})),[nodes,descriptors]);
@@ -54,10 +55,12 @@ function App(){
     }catch(e){setStatus('导入失败：'+e.message);}event.target.value='';
   }
   const current=nodes.find(n=>n.id===selected);
+  useEffect(()=>{setConfigDraft(JSON.stringify(current?.data.config??null,null,2));},[selected]);
+  function applyConfig(){if(!current)return;try{const parsed=JSON.parse(configDraft);setNodes(ns=>ns.map(n=>n.id===current.id?{...n,data:{...n.data,config:parsed}}:n));setStatus('节点配置已应用；请运行 Rust 校验');}catch(e){setStatus('配置 JSON 无效：'+e.message);}}
   return <div className="app"><header><strong>ModelBox Studio</strong><span>v0.2 · 实际 Rust Graph 编排</span><input value={name} onChange={e=>setName(e.target.value)} aria-label="Graph name"/><label>队列 <input type="number" min="1" max="65536" value={capacity} onChange={e=>setCapacity(e.target.value)}/></label></header>
     <div className="body"><aside><h3>FlowUnits · {catalog.length}</h3>{catalog.map(d=><button key={d.name} onClick={()=>addUnit(d)} title="添加节点">{d.name} <span>＋</span></button>)}<p>节点与端口均来自 Rust Registry。未连接时不能添加节点。</p></aside>
       <main><ReactFlow nodes={flowNodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={c=>setNodes(n=>applyNodeChanges(c,n))} onEdgesChange={c=>setEdges(e=>applyEdgeChanges(c,e))} onConnect={onConnect} onNodeClick={(_,n)=>setSelected(n.id)} onPaneClick={()=>setSelected(null)} fitView><Background/><Controls/><MiniMap/></ReactFlow></main>
-      <section><h3>属性与运行</h3>{current?<><div>节点：{current.id}</div><div>算子：{current.data.unit}</div><label>配置 JSON<textarea value={JSON.stringify(current.data.config,null,2)} onChange={e=>{try{let parsed=JSON.parse(e.target.value);setNodes(ns=>ns.map(n=>n.id===current.id?{...n,data:{...n.data,config:parsed}}:n));}catch{setStatus('配置 JSON 语法未完成，暂不保存');}}}/></label><button onClick={()=>{setNodes(ns=>ns.filter(n=>n.id!==current.id));setEdges(es=>es.filter(e=>e.source!==current.id&&e.target!==current.id));setSelected(null);}}>删除节点</button></>:<p>单击节点以修改配置。选择连线后按 Delete 可删除。</p>}
+      <section><h3>属性与运行</h3>{current?<><div>节点：{current.id}</div><div>算子：{current.data.unit}</div><label>配置 JSON<textarea value={configDraft} onChange={e=>setConfigDraft(e.target.value)}/></label><button onClick={applyConfig}>应用节点配置</button><button onClick={()=>{setNodes(ns=>ns.filter(n=>n.id!==current.id));setEdges(es=>es.filter(e=>e.source!==current.id&&e.target!==current.id));setSelected(null);}}>删除节点</button></>:<p>单击节点以修改配置。选择连线后按 Delete 可删除。</p>}
       <h4>Graph 文件</h4><button onClick={()=>download(name+'.json',spec())}>导出 GraphSpec</button><button onClick={()=>download(name+'.studio.json',{graph:spec(),positions:Object.fromEntries(nodes.map(n=>[n.id,n.position]))})}>保存画布</button><label className="upload">导入 JSON<input type="file" accept=".json,application/json" onChange={load}/></label>
       <h4>Rust Runtime</h4><input value={input} onChange={e=>setInput(e.target.value)} aria-label="运行输入文本"/><button disabled={busy} onClick={()=>execute('validate')}>校验 Graph</button><button disabled={busy} onClick={()=>execute('run')}>执行 Graph</button><pre role="status">{status}</pre></section></div></div>;
 }
