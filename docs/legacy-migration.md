@@ -61,3 +61,21 @@ The browser E2E test imports the real TOML fixture, verifies the Rust validator 
 - Read-only analysis and migration reports for unsupported production graphs.
 - Support alternative endpoints and mapped ports only where the actual Rust FlowUnit contract is known.
 - Investigate scheduling/buffer/device/driver semantic differences separately from parsing.
+
+## Read-only preflight and multiple blockers
+
+The local-only bridge additionally exposes `POST /api/analyze-legacy` with
+`{"filename":"legacy.toml","legacy_text":"..."}`. It **never executes** a
+legacy FlowUnit or calls Rust; it returns a read-only compatibility report with
+counts, detected node IDs, FlowUnit identifiers, device types and an aggregated
+list of blockers. The `candidate_convertible` flag means only that the
+supported text subset *may* be convertible. It does **not** mean that Rust
+validation, functional equivalence or performance equivalence has been proven.
+
+When Studio import fails on an unsupported legacy feature, it displays these
+blockers and **does not replace the existing Graph**. Multiple unsupported
+plugins, devices, custom driver settings and option names can be reported
+together. Preflight omits arbitrary attribute values and configured driver
+paths so credentials or URLs are not echoed in the UI. Unsupported Graphviz
+constructs still receive a generic, explicit unsupported-syntax diagnostic;
+the analyzer is deliberately not a complete Graphviz parser.
