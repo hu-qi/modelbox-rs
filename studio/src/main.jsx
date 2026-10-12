@@ -31,7 +31,7 @@ function App(){
   const [failureSnapshot,setFailureSnapshot]=useState(null);
   useEffect(()=>{fetch('/api/catalog').then(r=>r.json()).then(d=>{if(!Array.isArray(d))throw Error(d.error||'invalid catalog');setCatalog(d);setStatus('Rust FlowUnit Registry 已连接');}).catch(e=>setStatus('连接失败：'+e.message));},[]);
   const descriptors=useMemo(()=>Object.fromEntries(catalog.map(x=>[x.name,x])),[catalog]);
-  const flowNodes=useMemo(()=>nodes.map(n=>({...n,data:{...n.data,descriptor:descriptors[n.data.unit],execution:nodeExecutionState(n.id,n.data.unit,profileSnapshot?.profile,profileSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))),failure:failureSnapshot?.nodeId===n.id && failureSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))}})),[nodes,edges,name,capacity,descriptors,profileSnapshot,failureSnapshot]);
+  const flowNodes=useMemo(()=>nodes.map(n=>({...n,selected:n.id===selected,data:{...n.data,descriptor:descriptors[n.data.unit],execution:nodeExecutionState(n.id,n.data.unit,profileSnapshot?.profile,profileSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))),failure:failureSnapshot?.nodeId===n.id && failureSnapshot?.graph===JSON.stringify(toGraph(nodes,edges,name,capacity))}})),[nodes,edges,name,capacity,descriptors,profileSnapshot,failureSnapshot,selected]);
   const onConnect=useCallback(c=>{
     const problem=connectionError(c,nodes,edges,descriptors);
     if(problem){setStatus(problem);return;}
