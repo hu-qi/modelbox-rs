@@ -130,3 +130,43 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(body["deliveries"][0]["sequence"], 0)
         self.assertEqual(body["dropped_deliveries"], 0)
         self.assertEqual(mocked.call_args.args[0], "run-edges")
+
+    def test_legacy_import_validates_converted_graph_using_rust_cli(self):
+        fixture = Path(__file__).resolve().parents[2] / "examples/legacy_modelbox_hello.toml"
+        text = fixture.read_text(encoding="utf-8")
+        def validate_graph(*args):
+            self.assertEqual(args[0], "validate")
+            converted = json.loads(Path(args[1]).read_text(encoding="utf-8"))
+            self.assertEqual(converted["nodes"][2]["unit"], "text.prefix")
+            self.assertEqual(converted["edges"][0], {"from": "input1.out", "to": "upper.in"})
+            return SimpleNamespace(returncode=0, stdout="valid graph", stderr="")
+        with patch.object(bridge, "cargo", side_effect=validate_graph) as mock:
+            code, response = bridge.invoke("import-legacy", {
+                "filename": fixture.name, "legacy_text": text,
+            })
+        self.assertEqual(code, 200)
+        self.assertEqual(response["graph"]["nodes"][0]["unit"], "core.input")
+        self.assertEqual(response["report"]["node_count"], 4)
+        self.assertEqual(response["diagnostics"]["scope"], "legacy_import_and_runtime_validation")
+        mock.assert_called_once()
+
+    def test_legacy_import_propagates_rust_validation_failure(self):
+        fixture = Path(__file__).resolve().parents[2] / "examples/legacy_modelbox_hello.dot"
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(
+            returncode=1, stdout="", stderr="invalid graph: topology rejected"
+        )):
+            code, response = bridge.invoke("import-legacy", {
+                "filename": fixture.name, "legacy_text": fixture.read_text(),
+            })
+        self.assertEqual(code, 422)
+        self.assertIn("Rust Runtime rejected", response["error"])
+
+    def test_legacy_import_fails_closed_on_unsupported_plugin(self):
+        dot = "digraph demo { src[type=input]; op[type=flowunit,flowunit=legacy_cv_resize,device=cpu]; dst[type=output]; src -> op:in; op:out -> dst; }"
+        with patch.object(bridge, "cargo") as mock:
+            code, response = bridge.invoke("import-legacy", {
+                "filename": "graph.dot", "legacy_text": dot,
+            })
+        self.assertEqual(code, 422)
+        self.assertIn("unsupported legacy FlowUnit", response["error"])
+        mock.assert_not_called()

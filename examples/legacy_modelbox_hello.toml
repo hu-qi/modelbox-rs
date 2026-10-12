@@ -1,0 +1,17 @@
+# Illustrative actual ModelBox [graph]/Graphviz legacy configuration shape.
+# Only built-in CPU text FlowUnits can be mapped in this first migration subset.
+[driver]
+dir = ""
+
+[graph]
+format = "graphviz"
+graphconf = '''digraph hello_legacy {
+  input1[type=input]
+  upper[type=flowunit, flowunit=text.uppercase, device=cpu, deviceid=0]
+  prefix[type=flowunit, flowunit=text.prefix, device=cpu, prefix="ModelBox Rust says: "]
+  output1[type=output]
+
+  input1 -> upper:in
+  upper:out -> prefix:in
+  prefix:out -> output1
+}'''

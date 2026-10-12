@@ -94,3 +94,7 @@ attempt, not at the exact instant of enqueue, so they include send blocking
 (backpressure) and scheduling overhead. These are *not* precise per-Edge queue
 residence values or network latency, and the UI must not label them as such.
 The collector is opt-in and unsuitable for uninstrumented Release baselines.
+
+## ModelBox legacy DOT / TOML import (first subset)
+
+The **导入 JSON** picker also accepts `.dot`, `.toml`, and `.conf` files using the old ModelBox `[graph]` Graphviz syntax. This first step is intentionally **CPU text-only**, requires Python 3.11+, and accepts only the exact built-in Rust text FlowUnits. The local bridge calls **the real Rust `modelbox validate`** on the converted GraphSpec before updating Studio. Unsupported plugins/devices/options yield errors without changing the current canvas. See [legacy migration guide](../docs/legacy-migration.md).

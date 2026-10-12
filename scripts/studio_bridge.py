@@ -3,9 +3,13 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import pathlib
+import sys
 import subprocess
 import tempfile
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from legacy_import import LegacyImportError, convert_legacy
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HOST, PORT = "127.0.0.1", 8765
@@ -24,6 +28,31 @@ def invoke(action, payload):
     started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
+    elif action == "import-legacy":
+        filename = payload.get("filename")
+        legacy_text = payload.get("legacy_text")
+        if not isinstance(filename, str) or not isinstance(legacy_text, str):
+            return 400, {"error": "filename and legacy_text must be strings"}
+        try:
+            graph, report = convert_legacy(legacy_text, filename)
+        except LegacyImportError as error:
+            return 422, {"error": str(error)}
+        # Parsing alone is NOT enough. Rust Runtime is the source of truth for
+        # topology, types, required config and all port definitions.
+        with tempfile.TemporaryDirectory(prefix="modelbox-legacy-") as temp:
+            path = pathlib.Path(temp) / "graph.json"
+            path.write_text(json.dumps(graph), encoding="utf-8")
+            check = cargo("validate", str(path))
+        if check.returncode:
+            return 422, {"error": "Rust Runtime rejected migrated GraphSpec: " + (check.stderr or check.stdout)[-3072:]}
+        return 200, {
+            "graph": graph,
+            "report": report,
+            "diagnostics": {
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
+                "scope": "legacy_import_and_runtime_validation",
+            },
+        }
     elif action in ("validate", "run", "run-profile", "run-trace", "run-transport", "run-edges"):
         graph = payload.get("graph")
         if not isinstance(graph, dict):
@@ -114,7 +143,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges", "/api/import-legacy") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
