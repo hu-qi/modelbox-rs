@@ -28,3 +28,30 @@ currently returns a `FlowError`, partial traces are **not yet exposed on error**
 
 Profiling/tracing adds overhead. Compare uninstrumented performance using the
 existing benchmark commands. Native Studio timeline rendering is a follow-up.
+
+
+## Channel API timing (opt-in)
+
+`modelbox run-transport examples/hello.json "hi"` returns the unchanged
+`result` and a `node_transport` map with the following counters by worker
+node ID:
+
+| Field | Meaning |
+| --- | --- |
+| `receive_operations` | Calls to bounded-channel receive, including final end-of-stream probes |
+| `receive_wall_ns` | Total time inside receive calls, including upstream processing delays, scheduling and 20 ms timeout polling |
+| `send_operations` | Downstream bounded-channel send calls (fan-out counts each recipient separately) |
+| `send_wall_ns` | Total time inside send calls, including API overhead, scheduler stalls and blocking backpressure |
+| `send_timeouts` | Number of 20 ms bounded-send timeout retries |
+
+These are **measured channel API wall times**, not isolated waiting,
+per-edge queue residence or network latency. A receive can be delayed by
+upstream `process_owned`, and successful send operations can return
+immediately even if consumers have not processed the data. The source node has
+no input receive operations; unconnected terminal outputs are captured rather
+than sent through a channel.
+
+Telemetry is disabled for ordinary `run` and `run-trace`. Instrumentation
+adds overhead and should not be used as a replacement for uninstrumented
+Release graph-vs-direct benchmarks. A future Studio integration may present
+these counters, with their limitations, separately from process-time traces.

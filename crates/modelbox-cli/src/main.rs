@@ -36,6 +36,7 @@ fn usage() -> &'static str {
   modelbox run <graph.json> <TEXT>
   modelbox run-profile <graph.json> <TEXT>
   modelbox run-trace <graph.json> <TEXT>
+  modelbox run-transport <graph.json> <TEXT>
   modelbox run-batch <graph.json> <TEXT ...>
   modelbox infer <model.onnx> <tensor.json>   (requires --features onnx)
   modelbox infer-mnist-png <model.onnx> <28x28-grayscale.png>   (requires --features onnx)
@@ -165,12 +166,15 @@ fn execute() -> Result<(), FlowError> {
                 plan.terminal_names()
             );
         }
-        "run" | "run-batch" | "run-profile" | "run-trace" => {
+        "run" | "run-batch" | "run-profile" | "run-trace" | "run-transport" => {
             let path = args
                 .next()
                 .ok_or_else(|| FlowError::Execution(usage().to_owned()))?;
             let inputs: Vec<_> = args.map(Value::Text).collect();
-            if (command == "run" || command == "run-profile" || command == "run-trace")
+            if (command == "run"
+                || command == "run-profile"
+                || command == "run-trace"
+                || command == "run-transport")
                 && inputs.len() != 1
             {
                 return Err(FlowError::Execution(usage().to_owned()));
@@ -181,6 +185,9 @@ fn execute() -> Result<(), FlowError> {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else if command == "run-trace" {
                 let result = runtime.run_many_traced(&graph, inputs)?;
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else if command == "run-transport" {
+                let result = runtime.run_many_transport_profiled(&graph, inputs)?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else {
                 let result = runtime.run_many(&graph, inputs)?;

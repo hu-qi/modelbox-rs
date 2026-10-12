@@ -326,3 +326,43 @@ fn traced_run_caps_event_storage_and_reports_dropped_samples() {
     assert_eq!(traced.dropped_events, 1400 * 3 - 4096);
     assert_eq!(traced.result.outputs["result.out"].len(), 1400);
 }
+
+#[test]
+fn transport_profile_preserves_outputs_and_records_channel_api_operations() {
+    let spec = graph(HELLO);
+    let runtime = Runtime::default();
+    let baseline = runtime.run(&spec, Value::Text("hello".into())).unwrap();
+    let profiled = runtime
+        .run_many_transport_profiled(&spec, vec![Value::Text("hello".into())])
+        .unwrap();
+    assert_eq!(profiled.result.outputs, baseline.outputs);
+    assert_eq!(profiled.result.input_count, 1);
+    let source = &profiled.node_transport["source"];
+    assert_eq!(source.send_operations, 1);
+    assert_eq!(source.receive_operations, 0);
+    let upper = &profiled.node_transport["upper"];
+    assert_eq!(upper.send_operations, 1);
+    assert!(upper.receive_operations >= 1);
+    let sink = &profiled.node_transport["result"];
+    assert!(sink.receive_operations >= 1);
+    assert_eq!(sink.send_operations, 0);
+}
+
+#[test]
+fn transport_profile_works_with_bounded_fanout_under_backpressure() {
+    let spec = graph(FANOUT);
+    let input = (0..250)
+        .map(|index| Value::Text(index.to_string()))
+        .collect();
+    let profiled = Runtime::default()
+        .run_many_transport_profiled(&spec, input)
+        .unwrap();
+    assert_eq!(profiled.result.input_count, 250);
+    assert_eq!(profiled.result.outputs["result.out"].len(), 250);
+    let total_sends: usize = profiled
+        .node_transport
+        .values()
+        .map(|entry| entry.send_operations)
+        .sum();
+    assert_eq!(total_sends, 250 * 5);
+}
