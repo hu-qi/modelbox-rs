@@ -187,15 +187,19 @@ fn send_frame(
     result
 }
 
+struct DispatchContext<'a> {
+    captures: &'a Captures,
+    cancelled: &'a AtomicBool,
+    transport: Option<&'a TransportStore>,
+}
+
 fn dispatch(
     node_id: &str,
     unit: &dyn FlowUnit,
     sequence: usize,
     values: Vec<Value>,
     senders: &[Vec<Sender<Frame>>],
-    captures: &Captures,
-    cancelled: &AtomicBool,
-    transport: Option<&TransportStore>,
+    context: &DispatchContext<'_>,
 ) -> Result<()> {
     if values.len() != unit.outputs().len() {
         return Err(FlowError::Execution(format!(
@@ -227,8 +231,8 @@ fn dispatch(
                         sequence,
                         value: value.clone(),
                     },
-                    cancelled,
-                    transport,
+                    context.cancelled,
+                    context.transport,
                 )?;
             }
             send_frame(
@@ -236,12 +240,13 @@ fn dispatch(
                 port.name,
                 last,
                 Frame { sequence, value },
-                cancelled,
-                transport,
+                context.cancelled,
+                context.transport,
             )?;
         } else {
             let key = format!("{node_id}.{}", port.name);
-            captures
+            context
+                .captures
                 .lock()
                 .expect("capture mutex poisoned")
                 .entry(key)
@@ -268,6 +273,11 @@ struct Worker {
 
 impl Worker {
     fn execute(self) -> Result<()> {
+        let context = DispatchContext {
+            captures: &self.captures,
+            cancelled: self.cancelled.as_ref(),
+            transport: self.transport.as_ref(),
+        };
         if let Some(values) = self.source_values {
             for (sequence, value) in values.into_iter().enumerate() {
                 if self.cancelled.load(Ordering::Acquire) {
@@ -279,9 +289,7 @@ impl Worker {
                     sequence,
                     vec![value],
                     &self.outputs,
-                    &self.captures,
-                    &self.cancelled,
-                    self.transport.as_ref(),
+                    &context,
                 )?;
             }
             return Ok(());
@@ -355,9 +363,7 @@ impl Worker {
                 first.sequence,
                 output,
                 &self.outputs,
-                &self.captures,
-                &self.cancelled,
-                self.transport.as_ref(),
+                &context,
             )?;
         }
         Ok(())
