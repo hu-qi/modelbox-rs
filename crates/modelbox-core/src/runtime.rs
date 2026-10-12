@@ -559,7 +559,7 @@ impl Runtime {
     pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
         let plan = self.compile(spec)?;
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None)?;
+        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None, None)?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
         Ok(ProfiledRun {
             result,
@@ -575,7 +575,7 @@ impl Runtime {
             origin: Instant::now(),
             buffer: Mutex::new(TraceBuffer::default()),
         });
-        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None)?;
+        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None, None)?;
         let buffer = trace.buffer.lock().expect("trace mutex poisoned");
         let mut events = buffer.events.clone();
         events.sort_by(|a, b| {
@@ -602,7 +602,7 @@ impl Runtime {
     ) -> Result<TransportProfiledRun> {
         let plan = self.compile(spec)?;
         let store: TransportStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)))?;
+        let result = self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)), None)?;
         let node_transport = store.lock().expect("transport mutex poisoned").clone();
         Ok(TransportProfiledRun {
             result,
@@ -610,8 +610,60 @@ impl Runtime {
         })
     }
 
+    /// Opt-in, bounded per-Edge delivery intervals and API wall-time counters.
+    /// The interval starts BEFORE send_timeout and ends AFTER recv_timeout.
+    /// It includes send backpressure and scheduling; NOT isolated queue dwell.
+    pub fn run_many_edge_traced(
+        &self,
+        spec: &GraphSpec,
+        values: Vec<Value>,
+    ) -> Result<EdgeTracedRun> {
+        let plan = self.compile(spec)?;
+        let edges = plan
+            .edges
+            .iter()
+            .map(|edge| EdgeChannelProfile {
+                from: format!(
+                    "{}.{}",
+                    plan.nodes[edge.from_node].id,
+                    plan.nodes[edge.from_node].unit.outputs()[edge.from_port].name
+                ),
+                to: format!(
+                    "{}.{}",
+                    plan.nodes[edge.to_node].id,
+                    plan.nodes[edge.to_node].unit.inputs()[edge.to_port].name
+                ),
+                ..EdgeChannelProfile::default()
+            })
+            .collect();
+        let collector = Arc::new(EdgeCollector {
+            origin: Instant::now(),
+            buffer: Mutex::new(EdgeTraceBuffer {
+                edges,
+                deliveries: Vec::new(),
+                dropped_deliveries: 0,
+            }),
+        });
+        let result = self.run_plan_inner(&plan, values, None, None, None, Some(Arc::clone(&collector)))?;
+        let buffer = collector.buffer.lock().expect("edge mutex poisoned");
+        let mut deliveries = buffer.deliveries.clone();
+        deliveries.sort_by(|a, b| {
+            a.receive_completed_ns
+                .cmp(&b.receive_completed_ns)
+                .then_with(|| a.from.cmp(&b.from))
+                .then_with(|| a.to.cmp(&b.to))
+                .then_with(|| a.sequence.cmp(&b.sequence))
+        });
+        Ok(EdgeTracedRun {
+            result,
+            edges: buffer.edges.clone(),
+            deliveries,
+            dropped_deliveries: buffer.dropped_deliveries,
+        })
+    }
+
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
-        self.run_plan_inner(plan, values, None, None, None)
+        self.run_plan_inner(plan, values, None, None, None, None)
     }
 
     fn run_plan_inner(
@@ -621,6 +673,7 @@ impl Runtime {
         profile: Option<ProfileStore>,
         trace: Option<TraceStore>,
         transport: Option<TransportStore>,
+        edge_store: Option<EdgeStore>,
     ) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
@@ -643,21 +696,27 @@ impl Runtime {
             }
         }
 
-        let mut inbound: Vec<Vec<Option<Receiver<Frame>>>> = plan
+        let mut inbound: Vec<Vec<Option<EdgeReceiver>>> = plan
             .nodes
             .iter()
             .map(|node| vec![None; node.unit.inputs().len()])
             .collect();
-        let mut outbound: Vec<Vec<Vec<Sender<Frame>>>> = plan
+        let mut outbound: Vec<Vec<Vec<EdgeSender>>> = plan
             .nodes
             .iter()
             .map(|node| vec![Vec::new(); node.unit.outputs().len()])
             .collect();
 
-        for edge in &plan.edges {
+        for (index, edge) in plan.edges.iter().enumerate() {
             let (sender, receiver) = bounded(plan.queue_capacity);
-            inbound[edge.to_node][edge.to_port] = Some(receiver);
-            outbound[edge.from_node][edge.from_port].push(sender);
+            inbound[edge.to_node][edge.to_port] = Some(EdgeReceiver {
+                channel: receiver,
+                index,
+            });
+            outbound[edge.from_node][edge.from_port].push(EdgeSender {
+                channel: sender,
+                index,
+            });
         }
 
         std::thread::scope(|scope| {
@@ -684,6 +743,7 @@ impl Runtime {
                     profile: profile.clone(),
                     trace: trace.clone(),
                     transport: transport.clone(),
+                    edge_store: edge_store.clone(),
                 };
                 let failing_node_id = node.id.clone();
                 let worker_errors = Arc::clone(&errors);
