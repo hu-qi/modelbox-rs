@@ -113,3 +113,26 @@ test('real Rust Edge tracing shows link identity and invalidates stale statistic
   await page.getByRole('textbox',{name:'Graph name'}).fill('changed');
   await expect(page.getByLabel('逐边传输诊断')).toHaveCount(0);
 });
+
+test('genuine legacy TOML graph is mapped, Rust validated, then executed', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.locator('input[type=file]').setInputFiles('../examples/legacy_modelbox_hello.toml');
+  await expect(page.getByRole('status')).toContainText('已迁移兼容子集');
+  await expect(page.getByRole('status')).toContainText('Rust 校验通过');
+  await expect(page.locator('.react-flow__node')).toHaveCount(4);
+  await page.getByRole('button', {name:'执行 Graph'}).click();
+  await expect(page.getByText('ModelBox Rust says: HELLO MODELBOX', {exact:false})).toBeVisible();
+});
+
+test('unknown legacy plugins fail closed without mutating Studio graph', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.react-flow__node')).toHaveCount(4);
+  await page.locator('input[type=file]').setInputFiles({
+    name:'unsupported.dot', mimeType:'text/plain',
+    buffer:Buffer.from('digraph legacy { src[type=input]; resize[type=flowunit,flowunit=resize,device=cuda]; dst[type=output]; src -> resize:in; resize:out -> dst; }')
+  });
+  await expect(page.getByRole('status')).toContainText('unsupported legacy FlowUnit');
+  await expect(page.locator('.react-flow__node')).toHaveCount(4);
+  await expect(page.getByRole('textbox',{name:'Graph name'})).toHaveValue('hello');
+});
