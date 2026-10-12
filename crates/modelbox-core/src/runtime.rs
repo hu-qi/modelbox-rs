@@ -87,7 +87,6 @@ pub struct TransportProfiledRun {
     pub node_transport: BTreeMap<String, NodeTransportProfile>,
 }
 
-
 /// API-level per-edge measurements; neither duration is pure queue residence.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct EdgeChannelProfile {
@@ -142,7 +141,13 @@ impl EdgeCollector {
         edge.send_timeouts += timeouts;
     }
 
-    fn record_receive(&self, index: usize, elapsed_ns: u64, frame: Option<&Frame>, completed_at: Instant) {
+    fn record_receive(
+        &self,
+        index: usize,
+        elapsed_ns: u64,
+        frame: Option<&Frame>,
+        completed_at: Instant,
+    ) {
         let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
         {
             let edge = &mut buffer.edges[index];
@@ -168,7 +173,8 @@ impl EdgeCollector {
                         .started_at
                         .duration_since(self.origin)
                         .as_nanos()
-                        .min(u128::from(u64::MAX)) as u64,
+                        .min(u128::from(u64::MAX))
+                        as u64,
                     receive_completed_ns: completed_at
                         .duration_since(self.origin)
                         .as_nanos()
@@ -176,7 +182,8 @@ impl EdgeCollector {
                     attempt_to_receive_ns: completed_at
                         .duration_since(stamp.started_at)
                         .as_nanos()
-                        .min(u128::from(u64::MAX)) as u64,
+                        .min(u128::from(u64::MAX))
+                        as u64,
                 });
             } else {
                 buffer.dropped_deliveries += 1;
@@ -297,7 +304,10 @@ fn send_frame(
         if cancelled.load(Ordering::Acquire) {
             break Ok(());
         }
-        match sender.channel.send_timeout(pending, Duration::from_millis(20)) {
+        match sender
+            .channel
+            .send_timeout(pending, Duration::from_millis(20))
+        {
             Ok(()) => break Ok(()),
             Err(SendTimeoutError::Timeout(frame)) => {
                 pending = frame;
@@ -559,7 +569,8 @@ impl Runtime {
     pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
         let plan = self.compile(spec)?;
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None, None)?;
+        let result =
+            self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None, None)?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
         Ok(ProfiledRun {
             result,
@@ -575,7 +586,8 @@ impl Runtime {
             origin: Instant::now(),
             buffer: Mutex::new(TraceBuffer::default()),
         });
-        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None, None)?;
+        let result =
+            self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None, None)?;
         let buffer = trace.buffer.lock().expect("trace mutex poisoned");
         let mut events = buffer.events.clone();
         events.sort_by(|a, b| {
@@ -602,7 +614,8 @@ impl Runtime {
     ) -> Result<TransportProfiledRun> {
         let plan = self.compile(spec)?;
         let store: TransportStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)), None)?;
+        let result =
+            self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)), None)?;
         let node_transport = store.lock().expect("transport mutex poisoned").clone();
         Ok(TransportProfiledRun {
             result,
@@ -644,7 +657,14 @@ impl Runtime {
                 dropped_deliveries: 0,
             }),
         });
-        let result = self.run_plan_inner(&plan, values, None, None, None, Some(Arc::clone(&collector)))?;
+        let result = self.run_plan_inner(
+            &plan,
+            values,
+            None,
+            None,
+            None,
+            Some(Arc::clone(&collector)),
+        )?;
         let buffer = collector.buffer.lock().expect("edge mutex poisoned");
         let mut deliveries = buffer.deliveries.clone();
         deliveries.sort_by(|a, b| {
