@@ -31,6 +31,7 @@ struct Frame {
 type Captures = Arc<Mutex<BTreeMap<String, Vec<Frame>>>>;
 type FirstError = Arc<Mutex<Option<FlowError>>>;
 type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
+type TransportStore = Arc<Mutex<BTreeMap<String, NodeTransportProfile>>>;
 const MAX_TRACE_EVENTS: usize = 4096;
 
 /// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
@@ -45,6 +46,25 @@ pub struct NodeProfile {
 pub struct ProfiledRun {
     pub result: RunResult,
     pub node_process: BTreeMap<String, NodeProfile>,
+}
+
+/// Duration spent inside bounded-channel send/receive APIs. These are wall
+/// times, not isolated contention, queue residence, or network transport.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct NodeTransportProfile {
+    /// Includes successful receives and final disconnect/cancellation probes.
+    pub receive_operations: usize,
+    pub receive_wall_ns: u64,
+    /// One per delivered/cancelled downstream frame dispatch attempt.
+    pub send_operations: usize,
+    pub send_wall_ns: u64,
+    pub send_timeouts: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransportProfiledRun {
+    pub result: RunResult,
+    pub node_transport: BTreeMap<String, NodeTransportProfile>,
 }
 
 /// A bounded per-frame FlowUnit process interval (monotonic clock, not wall time).
@@ -97,17 +117,31 @@ fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError)
     cancelled.store(true, Ordering::Release);
 }
 
-fn receive(receiver: &Receiver<Frame>, cancelled: &AtomicBool) -> Option<Frame> {
-    loop {
+fn receive(
+    receiver: &Receiver<Frame>,
+    cancelled: &AtomicBool,
+    node_id: &str,
+    transport: Option<&TransportStore>,
+) -> Option<Frame> {
+    let started = transport.map(|_| Instant::now());
+    let result = loop {
         if cancelled.load(Ordering::Acquire) {
-            return None;
+            break None;
         }
         match receiver.recv_timeout(Duration::from_millis(20)) {
-            Ok(frame) => return Some(frame),
-            Err(RecvTimeoutError::Disconnected) => return None,
+            Ok(frame) => break Some(frame),
+            Err(RecvTimeoutError::Disconnected) => break None,
             Err(RecvTimeoutError::Timeout) => {}
         }
+    };
+    if let (Some(store), Some(started)) = (transport, started) {
+        let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+        let mut guard = store.lock().expect("transport mutex poisoned");
+        let sample = guard.entry(node_id.to_owned()).or_default();
+        sample.receive_operations += 1;
+        sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
     }
+    result
 }
 
 /// Bounded transport keeps ownership of a timed-out frame for retries.
@@ -118,24 +152,39 @@ fn send_frame(
     sender: &Sender<Frame>,
     mut pending: Frame,
     cancelled: &AtomicBool,
+    transport: Option<&TransportStore>,
 ) -> Result<()> {
-    loop {
+    let started = transport.map(|_| Instant::now());
+    let mut timeouts = 0;
+    let result = loop {
         if cancelled.load(Ordering::Acquire) {
-            return Ok(());
+            break Ok(());
         }
         match sender.send_timeout(pending, Duration::from_millis(20)) {
-            Ok(()) => return Ok(()),
-            Err(SendTimeoutError::Timeout(frame)) => pending = frame,
+            Ok(()) => break Ok(()),
+            Err(SendTimeoutError::Timeout(frame)) => {
+                pending = frame;
+                timeouts += 1;
+            }
             Err(SendTimeoutError::Disconnected(_)) => {
                 if cancelled.load(Ordering::Acquire) {
-                    return Ok(());
+                    break Ok(());
                 }
-                return Err(FlowError::Execution(format!(
+                break Err(FlowError::Execution(format!(
                     "downstream of {node_id}.{port_name} disconnected unexpectedly"
                 )));
             }
         }
+    };
+    if let (Some(store), Some(started)) = (transport, started) {
+        let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+        let mut guard = store.lock().expect("transport mutex poisoned");
+        let sample = guard.entry(node_id.to_owned()).or_default();
+        sample.send_operations += 1;
+        sample.send_wall_ns = sample.send_wall_ns.saturating_add(elapsed);
+        sample.send_timeouts += timeouts;
     }
+    result
 }
 
 fn dispatch(
@@ -146,6 +195,7 @@ fn dispatch(
     senders: &[Vec<Sender<Frame>>],
     captures: &Captures,
     cancelled: &AtomicBool,
+    transport: Option<&TransportStore>,
 ) -> Result<()> {
     if values.len() != unit.outputs().len() {
         return Err(FlowError::Execution(format!(
@@ -178,6 +228,7 @@ fn dispatch(
                         value: value.clone(),
                     },
                     cancelled,
+                    transport,
                 )?;
             }
             send_frame(
@@ -186,6 +237,7 @@ fn dispatch(
                 last,
                 Frame { sequence, value },
                 cancelled,
+                transport,
             )?;
         } else {
             let key = format!("{node_id}.{}", port.name);
@@ -211,6 +263,7 @@ struct Worker {
     cancelled: Arc<AtomicBool>,
     profile: Option<ProfileStore>,
     trace: Option<TraceStore>,
+    transport: Option<TransportStore>,
 }
 
 impl Worker {
@@ -228,6 +281,7 @@ impl Worker {
                     &self.outputs,
                     &self.captures,
                     &self.cancelled,
+                    self.transport.as_ref(),
                 )?;
             }
             return Ok(());
@@ -237,13 +291,23 @@ impl Worker {
             if self.cancelled.load(Ordering::Acquire) {
                 break;
             }
-            let first = match receive(&self.inputs[0], &self.cancelled) {
+            let first = match receive(
+                &self.inputs[0],
+                &self.cancelled,
+                &self.node_id,
+                self.transport.as_ref(),
+            ) {
                 Some(frame) => frame,
                 None => break,
             };
             let mut values = vec![first.value];
             for receiver in self.inputs.iter().skip(1) {
-                match receive(receiver, &self.cancelled) {
+                match receive(
+                    receiver,
+                    &self.cancelled,
+                    &self.node_id,
+                    self.transport.as_ref(),
+                ) {
                     Some(frame) if frame.sequence == first.sequence => values.push(frame.value),
                     Some(frame) => {
                         return Err(FlowError::Execution(format!(
@@ -293,6 +357,7 @@ impl Worker {
                 &self.outputs,
                 &self.captures,
                 &self.cancelled,
+                self.transport.as_ref(),
             )?;
         }
         Ok(())
@@ -330,7 +395,7 @@ impl Runtime {
     pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
         let plan = self.compile(spec)?;
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None)?;
+        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None)?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
         Ok(ProfiledRun {
             result,
@@ -346,7 +411,7 @@ impl Runtime {
             origin: Instant::now(),
             buffer: Mutex::new(TraceBuffer::default()),
         });
-        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)))?;
+        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None)?;
         let buffer = trace.buffer.lock().expect("trace mutex poisoned");
         let mut events = buffer.events.clone();
         events.sort_by(|a, b| {
@@ -362,8 +427,27 @@ impl Runtime {
         })
     }
 
+    /// Opt-in channel API wall-time counters per FlowUnit worker.
+    /// Receive times include upstream processing and end-of-stream probes;
+    /// send times include API call overhead and bounded-channel backpressure.
+    /// These are not isolated queue residency or pure transport overhead.
+    pub fn run_many_transport_profiled(
+        &self,
+        spec: &GraphSpec,
+        values: Vec<Value>,
+    ) -> Result<TransportProfiledRun> {
+        let plan = self.compile(spec)?;
+        let store: TransportStore = Arc::new(Mutex::new(BTreeMap::new()));
+        let result = self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)))?;
+        let node_transport = store.lock().expect("transport mutex poisoned").clone();
+        Ok(TransportProfiledRun {
+            result,
+            node_transport,
+        })
+    }
+
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
-        self.run_plan_inner(plan, values, None, None)
+        self.run_plan_inner(plan, values, None, None, None)
     }
 
     fn run_plan_inner(
@@ -372,6 +456,7 @@ impl Runtime {
         values: Vec<Value>,
         profile: Option<ProfileStore>,
         trace: Option<TraceStore>,
+        transport: Option<TransportStore>,
     ) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
@@ -434,6 +519,7 @@ impl Runtime {
                     cancelled: Arc::clone(&cancelled),
                     profile: profile.clone(),
                     trace: trace.clone(),
+                    transport: transport.clone(),
                 };
                 let failing_node_id = node.id.clone();
                 let worker_errors = Arc::clone(&errors);
