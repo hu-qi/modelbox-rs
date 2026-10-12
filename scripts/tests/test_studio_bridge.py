@@ -70,3 +70,19 @@ class StudioBridgeTests(TestCase):
             status, body = bridge.invoke("run", {"graph": {}, "input": "hello"})
         self.assertEqual(status, 422)
         self.assertEqual(body["node_id"], "upper")
+
+    def test_traced_run_forwards_event_timeline_without_payloads(self):
+        graph = {"name": "hello", "nodes": [], "edges": []}
+        stdout = json.dumps({
+            "result": {"outputs": {"result.out": [{"text": "hello"}]}, "input_count": 1},
+            "events": [{"node_id": "upper", "sequence": 0, "process_started_ns": 100,
+                        "process_duration_ns": 45, "ok": True}],
+            "dropped_events": 0,
+        })
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=0, stdout=stdout, stderr="")) as mock:
+            code, data = bridge.invoke("run-trace", {"graph": graph, "input": "hello"})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["result"]["input_count"], 1)
+        self.assertEqual(data["events"][0]["node_id"], "upper")
+        self.assertEqual(data["dropped_events"], 0)
+        self.assertEqual(mock.call_args.args[0], "run-trace")
