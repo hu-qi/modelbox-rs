@@ -97,3 +97,19 @@ test('actual Rust channel API diagnostic values are shown and invalidated', asyn
   await page.getByRole('textbox', {name:'Graph name'}).fill('changed');
   await expect(page.getByLabel('通道API计时')).toHaveCount(0);
 });
+
+test('real Rust Edge tracing shows link identity and invalidates stale statistics', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.getByRole('button',{name:'分析逐边交付'}).click();
+  const panel=page.getByLabel('逐边传输诊断');
+  await expect(panel).toContainText('已识别 3 条 Edge');
+  await expect(panel).toContainText('已保留 3 条逐帧交付事件');
+  await expect(panel).toContainText('source.out → upper.in');
+  await expect(panel).toContainText('upper.out → prefix.in');
+  await expect(panel).toContainText('不能视为精确的队列驻留时间');
+  await panel.locator('.edge-entry').first().click();
+  await expect(page.locator('.react-flow__node.selected')).toContainText('text.uppercase');
+  await page.getByRole('textbox',{name:'Graph name'}).fill('changed');
+  await expect(page.getByLabel('逐边传输诊断')).toHaveCount(0);
+});

@@ -21,3 +21,11 @@
 .channel-profile{border-bottom:1px solid #435566;padding:7px 0}
 .channel-profile strong{font-size:12px}
 .channel-profile p{margin:4px 0;font-size:11px;color:#b9cfde}
+
+.edge-panel{margin-top:14px;padding-top:10px;border-top:1px solid #526b7b}
+.edge-panel h4{margin:9px 0}
+.edge-panel p{color:#acc5d7;font-size:11px;line-height:1.5}
+.edge-entry{display:flex;flex-direction:column;gap:5px;width:100%;margin:5px 0;padding:8px;text-align:left}
+.edge-entry strong,.edge-event strong{font-size:11px;overflow-wrap:anywhere}
+.edge-entry small,.edge-event small{font-size:10px;line-height:1.5;color:#bbd4e1;overflow-wrap:anywhere}
+.edge-event{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid #405467;padding:7px 3px}

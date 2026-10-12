@@ -102,3 +102,31 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(data["result"]["input_count"], 1)
         self.assertEqual(data["node_transport"]["source"]["send_operations"], 1)
         self.assertEqual(mock.call_args.args[0], "run-transport")
+
+    def test_edge_run_forwards_real_link_events_and_bounded_counts(self):
+        graph = {"name": "hello", "nodes": [], "edges": []}
+        payload = {
+            "result": {"outputs": {}, "input_count": 1},
+            "edges": [{
+                "from": "source.out", "to": "upper.in",
+                "send_operations": 1, "send_wall_ns": 24,
+                "send_timeouts": 0, "receive_operations": 2,
+                "receive_wall_ns": 200, "delivered_frames": 1,
+            }],
+            "deliveries": [{
+                "from": "source.out", "to": "upper.in", "sequence": 0,
+                "send_attempt_started_ns": 100, "receive_completed_ns": 250,
+                "attempt_to_receive_ns": 150,
+            }],
+            "dropped_deliveries": 0,
+        }
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(
+            returncode=0, stdout=json.dumps(payload), stderr=""
+        )) as mocked:
+            code, body = bridge.invoke("run-edges", {"graph": graph, "input": "hello"})
+        self.assertEqual(code, 200)
+        self.assertEqual(body["result"]["input_count"], 1)
+        self.assertEqual(body["edges"][0]["from"], "source.out")
+        self.assertEqual(body["deliveries"][0]["sequence"], 0)
+        self.assertEqual(body["dropped_deliveries"], 0)
+        self.assertEqual(mocked.call_args.args[0], "run-edges")
