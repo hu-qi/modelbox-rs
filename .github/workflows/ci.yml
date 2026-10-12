@@ -71,6 +71,8 @@ jobs:
         run: cargo run -p modelbox-cli -- run-trace examples/hello.json studio-trace
       - name: Transport channel timing CLI smoke
         run: cargo run -p modelbox-cli -- run-transport examples/hello.json transport-contract
+      - name: Bounded edge delivery CLI smoke
+        run: cargo run -p modelbox-cli -- run-edges examples/hello.json edge-contract
       - name: Studio FlowUnit catalog smoke
         run: cargo run -p modelbox-cli -- catalog --json
       - name: Studio GraphSpec contract smoke
