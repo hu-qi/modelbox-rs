@@ -31,6 +31,8 @@ struct Frame {
 type Captures = Arc<Mutex<BTreeMap<String, Vec<Frame>>>>;
 type FirstError = Arc<Mutex<Option<FlowError>>>;
 type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
+const MAX_TRACE_EVENTS: usize = 4096;
+
 
 /// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
 /// are not additive and do not represent graph end-to-end latency.
@@ -45,6 +47,48 @@ pub struct ProfiledRun {
     pub result: RunResult,
     pub node_process: BTreeMap<String, NodeProfile>,
 }
+
+/// A bounded per-frame FlowUnit process interval (monotonic clock, not wall time).
+/// Events contain no input/output payloads or tensor contents.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceEvent {
+    pub node_id: String,
+    pub sequence: usize,
+    pub process_started_ns: u64,
+    pub process_duration_ns: u64,
+    pub ok: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TracedRun {
+    pub result: RunResult,
+    pub events: Vec<TraceEvent>,
+    pub dropped_events: usize,
+}
+
+#[derive(Default)]
+struct TraceBuffer {
+    events: Vec<TraceEvent>,
+    dropped_events: usize,
+}
+
+struct TraceCollector {
+    origin: Instant,
+    buffer: Mutex<TraceBuffer>,
+}
+
+impl TraceCollector {
+    fn record(&self, event: TraceEvent) {
+        let mut buffer = self.buffer.lock().expect("trace mutex poisoned");
+        if buffer.events.len() >= MAX_TRACE_EVENTS {
+            buffer.dropped_events += 1;
+        } else {
+            buffer.events.push(event);
+        }
+    }
+}
+
+type TraceStore = Arc<TraceCollector>;
 
 fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError) {
     let mut guard = errors.lock().expect("error mutex poisoned");
@@ -167,6 +211,7 @@ struct Worker {
     captures: Captures,
     cancelled: Arc<AtomicBool>,
     profile: Option<ProfileStore>,
+    trace: Option<TraceStore>,
 }
 
 impl Worker {
@@ -216,14 +261,29 @@ impl Worker {
                     }
                 }
             }
-            let start = self.profile.as_ref().map(|_| Instant::now());
+            let start = (self.profile.is_some() || self.trace.is_some()).then(Instant::now);
             let processed = self.unit.process_owned(values, &self.config);
-            if let (Some(profile), Some(start)) = (&self.profile, start) {
+            if let Some(start) = start {
                 let elapsed = start.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
-                let mut entries = profile.lock().expect("profile mutex poisoned");
-                let sample = entries.entry(self.node_id.clone()).or_default();
-                sample.calls += 1;
-                sample.process_ns = sample.process_ns.saturating_add(elapsed);
+                if let Some(profile) = &self.profile {
+                    let mut entries = profile.lock().expect("profile mutex poisoned");
+                    let sample = entries.entry(self.node_id.clone()).or_default();
+                    sample.calls += 1;
+                    sample.process_ns = sample.process_ns.saturating_add(elapsed);
+                }
+                if let Some(trace) = &self.trace {
+                    let offset = start
+                        .duration_since(trace.origin)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX)) as u64;
+                    trace.record(TraceEvent {
+                        node_id: self.node_id.clone(),
+                        sequence: first.sequence,
+                        process_started_ns: offset,
+                        process_duration_ns: elapsed,
+                        ok: processed.is_ok(),
+                    });
+                }
             }
             let output = processed?;
             dispatch(
@@ -271,7 +331,7 @@ impl Runtime {
     pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
         let plan = self.compile(spec)?;
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)))?;
+        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None)?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
         Ok(ProfiledRun {
             result,
@@ -279,8 +339,32 @@ impl Runtime {
         })
     }
 
+    /// Opt-in, bounded per-frame process timeline. Input/output payloads are
+    /// intentionally excluded. Traces are returned for successful runs only.
+    pub fn run_many_traced(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<TracedRun> {
+        let plan = self.compile(spec)?;
+        let trace = Arc::new(TraceCollector {
+            origin: Instant::now(),
+            buffer: Mutex::new(TraceBuffer::default()),
+        });
+        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)))?;
+        let buffer = trace.buffer.lock().expect("trace mutex poisoned");
+        let mut events = buffer.events.clone();
+        events.sort_by(|a, b| {
+            a.process_started_ns
+                .cmp(&b.process_started_ns)
+                .then_with(|| a.node_id.cmp(&b.node_id))
+                .then_with(|| a.sequence.cmp(&b.sequence))
+        });
+        Ok(TracedRun {
+            result,
+            events,
+            dropped_events: buffer.dropped_events,
+        })
+    }
+
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
-        self.run_plan_inner(plan, values, None)
+        self.run_plan_inner(plan, values, None, None)
     }
 
     fn run_plan_inner(
@@ -288,6 +372,7 @@ impl Runtime {
         plan: &ExecutionPlan,
         values: Vec<Value>,
         profile: Option<ProfileStore>,
+        trace: Option<TraceStore>,
     ) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
@@ -349,6 +434,7 @@ impl Runtime {
                     captures: Arc::clone(&captures),
                     cancelled: Arc::clone(&cancelled),
                     profile: profile.clone(),
+                    trace: trace.clone(),
                 };
                 let failing_node_id = node.id.clone();
                 let worker_errors = Arc::clone(&errors);
