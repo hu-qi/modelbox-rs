@@ -32,7 +32,7 @@ def invoke(action, payload):
         with tempfile.TemporaryDirectory(prefix="modelbox-studio-") as temp:
             path = pathlib.Path(temp) / "graph.json"
             path.write_text(json.dumps(graph), encoding="utf-8")
-            if action in ("run", "run-profile", "run-trace"):
+            if action in ("run", "run-profile", "run-trace", "run-transport"):
                 value = payload.get("input")
                 if not isinstance(value, str) or len(value) > 4096:
                     return 400, {"error": "input must be a text string of at most 4096 characters"}
@@ -59,7 +59,7 @@ def invoke(action, payload):
         return 422, detail
     if action == "catalog":
         return 200, json.loads(result.stdout)
-    if action in ("run", "run-profile", "run-trace"):
+    if action in ("run", "run-profile", "run-trace", "run-transport"):
         output = json.loads(result.stdout)
         if action == "run-profile":
             return 200, {"result": output["result"], "node_process": output["node_process"], "diagnostics": diagnostics}
