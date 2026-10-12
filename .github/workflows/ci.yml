@@ -67,6 +67,8 @@ jobs:
         run: cargo run -p modelbox-cli -- demo
       - name: Profiled runtime CLI smoke
         run: cargo run -p modelbox-cli -- run-profile examples/hello.json studio-profile
+      - name: Bounded frame trace CLI smoke
+        run: cargo run -p modelbox-cli -- run-trace examples/hello.json studio-trace
       - name: Studio FlowUnit catalog smoke
         run: cargo run -p modelbox-cli -- catalog --json
       - name: Studio GraphSpec contract smoke

@@ -282,3 +282,47 @@ fn profiled_run_preserves_outputs_and_counts_non_source_units() {
         assert_eq!(profiled.node_process[node].calls, 1);
     }
 }
+
+#[test]
+fn traced_run_preserves_outputs_and_reports_per_frame_intervals() {
+    let spec = graph(HELLO);
+    let runtime = Runtime::default();
+    let inputs = vec![Value::Text("hello".into()), Value::Text("world".into())];
+    let baseline = runtime.run_many(&spec, inputs.clone()).unwrap();
+    let traced = runtime.run_many_traced(&spec, inputs).unwrap();
+    assert_eq!(traced.result.outputs, baseline.outputs);
+    assert_eq!(traced.result.input_count, 2);
+    assert_eq!(traced.dropped_events, 0);
+    assert_eq!(traced.events.len(), 6);
+    assert!(traced.events.iter().all(|event| event.ok));
+    assert!(traced.events.iter().all(|event| event.node_id != "source"));
+    for node in ["upper", "prefix", "result"] {
+        for sequence in 0..2 {
+            assert_eq!(
+                traced
+                    .events
+                    .iter()
+                    .filter(|event| event.node_id == node && event.sequence == sequence)
+                    .count(),
+                1
+            );
+        }
+    }
+    assert!(traced
+        .events
+        .windows(2)
+        .all(|pair| { pair[0].process_started_ns <= pair[1].process_started_ns }));
+}
+
+#[test]
+fn traced_run_caps_event_storage_and_reports_dropped_samples() {
+    let spec = graph(HELLO);
+    let inputs: Vec<_> = (0..1400)
+        .map(|index| Value::Text(index.to_string()))
+        .collect();
+    let traced = Runtime::default().run_many_traced(&spec, inputs).unwrap();
+    assert_eq!(traced.result.input_count, 1400);
+    assert_eq!(traced.events.len(), 4096);
+    assert_eq!(traced.dropped_events, 1400 * 3 - 4096);
+    assert_eq!(traced.result.outputs["result.out"].len(), 1400);
+}
