@@ -17,7 +17,10 @@ pub use onnx_cpu::OnnxCpuFlowUnit;
 pub use error::FlowError;
 pub use flow_unit::{FlowRegistry, FlowUnit, FlowUnitDescriptor, PortDef, PortDescriptor};
 pub use graph::{EdgeSpec, ExecutionPlan, GraphSpec, NodeSpec};
-pub use runtime::{NodeProfile, ProfiledRun, RunResult, Runtime, TraceEvent, TracedRun};
+pub use runtime::{
+    NodeProfile, NodeTransportProfile, ProfiledRun, RunResult, Runtime, TraceEvent, TracedRun,
+    TransportProfiledRun,
+};
 pub use value::{DataType, TensorF32, Value};
 
 pub type Result<T> = std::result::Result<T, FlowError>;
