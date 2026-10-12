@@ -337,7 +337,7 @@ def analyze_legacy(text, filename):
         try:
             convert_legacy(text, filename)
         except LegacyImportError as error:
-            issue("unsupported_semantics", str(error))
+            issue("unsupported_semantics", "DOT structure, edge ports or graph settings exceed the supported migration subset")
     return {
         "source_format": "modelbox-graphviz",
         "node_count": len(nodes),
