@@ -26,6 +26,25 @@ pub struct Runtime {
 struct Frame {
     sequence: usize,
     value: Value,
+    attempt: Option<EdgeAttempt>,
+}
+
+#[derive(Clone)]
+struct EdgeAttempt {
+    index: usize,
+    started_at: Instant,
+}
+
+#[derive(Clone)]
+struct EdgeSender {
+    channel: Sender<Frame>,
+    index: usize,
+}
+
+#[derive(Clone)]
+struct EdgeReceiver {
+    channel: Receiver<Frame>,
+    index: usize,
 }
 
 type Captures = Arc<Mutex<BTreeMap<String, Vec<Frame>>>>;
@@ -33,6 +52,7 @@ type FirstError = Arc<Mutex<Option<FlowError>>>;
 type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
 type TransportStore = Arc<Mutex<BTreeMap<String, NodeTransportProfile>>>;
 const MAX_TRACE_EVENTS: usize = 4096;
+const MAX_EDGE_DELIVERIES: usize = 4096;
 
 /// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
 /// are not additive and do not represent graph end-to-end latency.
@@ -66,6 +86,113 @@ pub struct TransportProfiledRun {
     pub result: RunResult,
     pub node_transport: BTreeMap<String, NodeTransportProfile>,
 }
+
+/// API-level per-edge measurements; neither duration is pure queue residence.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct EdgeChannelProfile {
+    pub from: String,
+    pub to: String,
+    pub send_operations: usize,
+    pub send_wall_ns: u64,
+    pub send_timeouts: usize,
+    /// Includes the final end-of-stream receive probe.
+    pub receive_operations: usize,
+    pub receive_wall_ns: u64,
+    pub delivered_frames: usize,
+}
+
+/// Interval measured from the start of a send attempt to completed receive.
+/// Includes bounded-channel backpressure and scheduling, NOT queue-only dwell.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EdgeDeliveryEvent {
+    pub from: String,
+    pub to: String,
+    pub sequence: usize,
+    pub send_attempt_started_ns: u64,
+    pub receive_completed_ns: u64,
+    pub attempt_to_receive_ns: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EdgeTracedRun {
+    pub result: RunResult,
+    pub edges: Vec<EdgeChannelProfile>,
+    pub deliveries: Vec<EdgeDeliveryEvent>,
+    pub dropped_deliveries: usize,
+}
+
+struct EdgeTraceBuffer {
+    edges: Vec<EdgeChannelProfile>,
+    deliveries: Vec<EdgeDeliveryEvent>,
+    dropped_deliveries: usize,
+}
+
+struct EdgeCollector {
+    origin: Instant,
+    buffer: Mutex<EdgeTraceBuffer>,
+}
+
+impl EdgeCollector {
+    fn record_send(&self, index: usize, elapsed_ns: u64, timeouts: usize) {
+        let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
+        let edge = &mut buffer.edges[index];
+        edge.send_operations += 1;
+        edge.send_wall_ns = edge.send_wall_ns.saturating_add(elapsed_ns);
+        edge.send_timeouts += timeouts;
+    }
+
+    fn record_receive(
+        &self,
+        index: usize,
+        elapsed_ns: u64,
+        frame: Option<&Frame>,
+        completed_at: Instant,
+    ) {
+        let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
+        {
+            let edge = &mut buffer.edges[index];
+            edge.receive_operations += 1;
+            edge.receive_wall_ns = edge.receive_wall_ns.saturating_add(elapsed_ns);
+            if frame.is_some() {
+                edge.delivered_frames += 1;
+            }
+        }
+        if let Some(stamp) = frame.and_then(|frame| frame.attempt.as_ref()) {
+            debug_assert_eq!(stamp.index, index);
+            if buffer.deliveries.len() < MAX_EDGE_DELIVERIES {
+                let frame = frame.expect("stamp requires a frame");
+                let (from, to) = {
+                    let edge = &buffer.edges[index];
+                    (edge.from.clone(), edge.to.clone())
+                };
+                buffer.deliveries.push(EdgeDeliveryEvent {
+                    from,
+                    to,
+                    sequence: frame.sequence,
+                    send_attempt_started_ns: stamp
+                        .started_at
+                        .duration_since(self.origin)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX))
+                        as u64,
+                    receive_completed_ns: completed_at
+                        .duration_since(self.origin)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX)) as u64,
+                    attempt_to_receive_ns: completed_at
+                        .duration_since(stamp.started_at)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX))
+                        as u64,
+                });
+            } else {
+                buffer.dropped_deliveries += 1;
+            }
+        }
+    }
+}
+
+type EdgeStore = Arc<EdgeCollector>;
 
 /// A bounded per-frame FlowUnit process interval (monotonic clock, not wall time).
 /// Events contain no input/output payloads or tensor contents.
@@ -118,28 +245,38 @@ fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError)
 }
 
 fn receive(
-    receiver: &Receiver<Frame>,
+    receiver: &EdgeReceiver,
     cancelled: &AtomicBool,
     node_id: &str,
     transport: Option<&TransportStore>,
+    edge_store: Option<&EdgeStore>,
 ) -> Option<Frame> {
-    let started = transport.map(|_| Instant::now());
+    let started = (transport.is_some() || edge_store.is_some()).then(Instant::now);
     let result = loop {
         if cancelled.load(Ordering::Acquire) {
             break None;
         }
-        match receiver.recv_timeout(Duration::from_millis(20)) {
+        match receiver.channel.recv_timeout(Duration::from_millis(20)) {
             Ok(frame) => break Some(frame),
             Err(RecvTimeoutError::Disconnected) => break None,
             Err(RecvTimeoutError::Timeout) => {}
         }
     };
-    if let (Some(store), Some(started)) = (transport, started) {
-        let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
-        let mut guard = store.lock().expect("transport mutex poisoned");
-        let sample = guard.entry(node_id.to_owned()).or_default();
-        sample.receive_operations += 1;
-        sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
+    if let Some(started) = started {
+        let completed_at = Instant::now();
+        let elapsed = completed_at
+            .duration_since(started)
+            .as_nanos()
+            .min(u128::from(u64::MAX)) as u64;
+        if let Some(store) = transport {
+            let mut guard = store.lock().expect("transport mutex poisoned");
+            let sample = guard.entry(node_id.to_owned()).or_default();
+            sample.receive_operations += 1;
+            sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
+        }
+        if let Some(store) = edge_store {
+            store.record_receive(receiver.index, elapsed, result.as_ref(), completed_at);
+        }
     }
     result
 }
@@ -149,18 +286,28 @@ fn receive(
 fn send_frame(
     node_id: &str,
     port_name: &str,
-    sender: &Sender<Frame>,
+    sender: &EdgeSender,
     mut pending: Frame,
     cancelled: &AtomicBool,
     transport: Option<&TransportStore>,
+    edge_store: Option<&EdgeStore>,
 ) -> Result<()> {
-    let started = transport.map(|_| Instant::now());
+    let started = (transport.is_some() || edge_store.is_some()).then(Instant::now);
+    if let (Some(_), Some(started)) = (edge_store, started) {
+        pending.attempt = Some(EdgeAttempt {
+            index: sender.index,
+            started_at: started,
+        });
+    }
     let mut timeouts = 0;
     let result = loop {
         if cancelled.load(Ordering::Acquire) {
             break Ok(());
         }
-        match sender.send_timeout(pending, Duration::from_millis(20)) {
+        match sender
+            .channel
+            .send_timeout(pending, Duration::from_millis(20))
+        {
             Ok(()) => break Ok(()),
             Err(SendTimeoutError::Timeout(frame)) => {
                 pending = frame;
@@ -176,13 +323,18 @@ fn send_frame(
             }
         }
     };
-    if let (Some(store), Some(started)) = (transport, started) {
+    if let Some(started) = started {
         let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
-        let mut guard = store.lock().expect("transport mutex poisoned");
-        let sample = guard.entry(node_id.to_owned()).or_default();
-        sample.send_operations += 1;
-        sample.send_wall_ns = sample.send_wall_ns.saturating_add(elapsed);
-        sample.send_timeouts += timeouts;
+        if let Some(store) = transport {
+            let mut guard = store.lock().expect("transport mutex poisoned");
+            let sample = guard.entry(node_id.to_owned()).or_default();
+            sample.send_operations += 1;
+            sample.send_wall_ns = sample.send_wall_ns.saturating_add(elapsed);
+            sample.send_timeouts += timeouts;
+        }
+        if let Some(store) = edge_store {
+            store.record_send(sender.index, elapsed, timeouts);
+        }
     }
     result
 }
@@ -191,6 +343,7 @@ struct DispatchContext<'a> {
     captures: &'a Captures,
     cancelled: &'a AtomicBool,
     transport: Option<&'a TransportStore>,
+    edge_store: Option<&'a EdgeStore>,
 }
 
 fn dispatch(
@@ -198,7 +351,7 @@ fn dispatch(
     unit: &dyn FlowUnit,
     sequence: usize,
     values: Vec<Value>,
-    senders: &[Vec<Sender<Frame>>],
+    senders: &[Vec<EdgeSender>],
     context: &DispatchContext<'_>,
 ) -> Result<()> {
     if values.len() != unit.outputs().len() {
@@ -230,18 +383,25 @@ fn dispatch(
                     Frame {
                         sequence,
                         value: value.clone(),
+                        attempt: None,
                     },
                     context.cancelled,
                     context.transport,
+                    context.edge_store,
                 )?;
             }
             send_frame(
                 node_id,
                 port.name,
                 last,
-                Frame { sequence, value },
+                Frame {
+                    sequence,
+                    value,
+                    attempt: None,
+                },
                 context.cancelled,
                 context.transport,
+                context.edge_store,
             )?;
         } else {
             let key = format!("{node_id}.{}", port.name);
@@ -251,7 +411,11 @@ fn dispatch(
                 .expect("capture mutex poisoned")
                 .entry(key)
                 .or_default()
-                .push(Frame { sequence, value });
+                .push(Frame {
+                    sequence,
+                    value,
+                    attempt: None,
+                });
         }
     }
     Ok(())
@@ -261,14 +425,15 @@ struct Worker {
     node_id: String,
     unit: Arc<dyn FlowUnit>,
     config: JsonValue,
-    inputs: Vec<Receiver<Frame>>,
-    outputs: Vec<Vec<Sender<Frame>>>,
+    inputs: Vec<EdgeReceiver>,
+    outputs: Vec<Vec<EdgeSender>>,
     source_values: Option<Vec<Value>>,
     captures: Captures,
     cancelled: Arc<AtomicBool>,
     profile: Option<ProfileStore>,
     trace: Option<TraceStore>,
     transport: Option<TransportStore>,
+    edge_store: Option<EdgeStore>,
 }
 
 impl Worker {
@@ -277,6 +442,7 @@ impl Worker {
             captures: &self.captures,
             cancelled: self.cancelled.as_ref(),
             transport: self.transport.as_ref(),
+            edge_store: self.edge_store.as_ref(),
         };
         if let Some(values) = self.source_values {
             for (sequence, value) in values.into_iter().enumerate() {
@@ -304,6 +470,7 @@ impl Worker {
                 &self.cancelled,
                 &self.node_id,
                 self.transport.as_ref(),
+                self.edge_store.as_ref(),
             ) {
                 Some(frame) => frame,
                 None => break,
@@ -315,6 +482,7 @@ impl Worker {
                     &self.cancelled,
                     &self.node_id,
                     self.transport.as_ref(),
+                    self.edge_store.as_ref(),
                 ) {
                     Some(frame) if frame.sequence == first.sequence => values.push(frame.value),
                     Some(frame) => {
@@ -401,7 +569,8 @@ impl Runtime {
     pub fn run_many_profiled(&self, spec: &GraphSpec, values: Vec<Value>) -> Result<ProfiledRun> {
         let plan = self.compile(spec)?;
         let store: ProfileStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None)?;
+        let result =
+            self.run_plan_inner(&plan, values, Some(Arc::clone(&store)), None, None, None)?;
         let node_process = store.lock().expect("profile mutex poisoned").clone();
         Ok(ProfiledRun {
             result,
@@ -417,7 +586,8 @@ impl Runtime {
             origin: Instant::now(),
             buffer: Mutex::new(TraceBuffer::default()),
         });
-        let result = self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None)?;
+        let result =
+            self.run_plan_inner(&plan, values, None, Some(Arc::clone(&trace)), None, None)?;
         let buffer = trace.buffer.lock().expect("trace mutex poisoned");
         let mut events = buffer.events.clone();
         events.sort_by(|a, b| {
@@ -444,7 +614,8 @@ impl Runtime {
     ) -> Result<TransportProfiledRun> {
         let plan = self.compile(spec)?;
         let store: TransportStore = Arc::new(Mutex::new(BTreeMap::new()));
-        let result = self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)))?;
+        let result =
+            self.run_plan_inner(&plan, values, None, None, Some(Arc::clone(&store)), None)?;
         let node_transport = store.lock().expect("transport mutex poisoned").clone();
         Ok(TransportProfiledRun {
             result,
@@ -452,8 +623,67 @@ impl Runtime {
         })
     }
 
+    /// Opt-in, bounded per-Edge delivery intervals and API wall-time counters.
+    /// The interval starts BEFORE send_timeout and ends AFTER recv_timeout.
+    /// It includes send backpressure and scheduling; NOT isolated queue dwell.
+    pub fn run_many_edge_traced(
+        &self,
+        spec: &GraphSpec,
+        values: Vec<Value>,
+    ) -> Result<EdgeTracedRun> {
+        let plan = self.compile(spec)?;
+        let edges = plan
+            .edges
+            .iter()
+            .map(|edge| EdgeChannelProfile {
+                from: format!(
+                    "{}.{}",
+                    plan.nodes[edge.from_node].id,
+                    plan.nodes[edge.from_node].unit.outputs()[edge.from_port].name
+                ),
+                to: format!(
+                    "{}.{}",
+                    plan.nodes[edge.to_node].id,
+                    plan.nodes[edge.to_node].unit.inputs()[edge.to_port].name
+                ),
+                ..EdgeChannelProfile::default()
+            })
+            .collect();
+        let collector = Arc::new(EdgeCollector {
+            origin: Instant::now(),
+            buffer: Mutex::new(EdgeTraceBuffer {
+                edges,
+                deliveries: Vec::new(),
+                dropped_deliveries: 0,
+            }),
+        });
+        let result = self.run_plan_inner(
+            &plan,
+            values,
+            None,
+            None,
+            None,
+            Some(Arc::clone(&collector)),
+        )?;
+        let buffer = collector.buffer.lock().expect("edge mutex poisoned");
+        let mut deliveries = buffer.deliveries.clone();
+        deliveries.sort_by(|a, b| {
+            a.receive_completed_ns
+                .cmp(&b.receive_completed_ns)
+                .then_with(|| a.from.cmp(&b.from))
+                .then_with(|| a.to.cmp(&b.to))
+                .then_with(|| a.sequence.cmp(&b.sequence))
+        });
+        Ok(EdgeTracedRun {
+            result,
+            edges: buffer.edges.clone(),
+            deliveries,
+            dropped_deliveries: buffer.dropped_deliveries,
+        })
+    }
+
     pub fn run_plan(&self, plan: &ExecutionPlan, values: Vec<Value>) -> Result<RunResult> {
-        self.run_plan_inner(plan, values, None, None, None)
+        self.run_plan_inner(plan, values, None, None, None, None)
     }
 
     fn run_plan_inner(
@@ -463,6 +693,7 @@ impl Runtime {
         profile: Option<ProfileStore>,
         trace: Option<TraceStore>,
         transport: Option<TransportStore>,
+        edge_store: Option<EdgeStore>,
     ) -> Result<RunResult> {
         let expected = plan.nodes[plan.source].unit.outputs()[0].data_type;
         for (index, value) in values.iter().enumerate() {
@@ -485,21 +716,27 @@ impl Runtime {
             }
         }
 
-        let mut inbound: Vec<Vec<Option<Receiver<Frame>>>> = plan
+        let mut inbound: Vec<Vec<Option<EdgeReceiver>>> = plan
             .nodes
             .iter()
             .map(|node| vec![None; node.unit.inputs().len()])
             .collect();
-        let mut outbound: Vec<Vec<Vec<Sender<Frame>>>> = plan
+        let mut outbound: Vec<Vec<Vec<EdgeSender>>> = plan
             .nodes
             .iter()
             .map(|node| vec![Vec::new(); node.unit.outputs().len()])
             .collect();
 
-        for edge in &plan.edges {
+        for (index, edge) in plan.edges.iter().enumerate() {
             let (sender, receiver) = bounded(plan.queue_capacity);
-            inbound[edge.to_node][edge.to_port] = Some(receiver);
-            outbound[edge.from_node][edge.from_port].push(sender);
+            inbound[edge.to_node][edge.to_port] = Some(EdgeReceiver {
+                channel: receiver,
+                index,
+            });
+            outbound[edge.from_node][edge.from_port].push(EdgeSender {
+                channel: sender,
+                index,
+            });
         }
 
         std::thread::scope(|scope| {
@@ -526,6 +763,7 @@ impl Runtime {
                     profile: profile.clone(),
                     trace: trace.clone(),
                     transport: transport.clone(),
+                    edge_store: edge_store.clone(),
                 };
                 let failing_node_id = node.id.clone();
                 let worker_errors = Arc::clone(&errors);
