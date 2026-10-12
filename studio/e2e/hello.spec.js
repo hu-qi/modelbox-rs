@@ -133,6 +133,10 @@ test('unknown legacy plugins fail closed without mutating Studio graph', async (
     buffer:Buffer.from('digraph legacy { src[type=input]; resize[type=flowunit,flowunit=resize,device=cuda]; dst[type=output]; src -> resize:in; resize:out -> dst; }')
   });
   await expect(page.getByRole('status')).toContainText('unsupported legacy FlowUnit');
+  const report = page.getByLabel('旧版迁移兼容性分析');
+  await expect(report).toContainText('unmapped_flowunit');
+  await expect(report).toContainText('device');
+  await expect(report).toContainText('原 Graph 未被替换');
   await expect(page.locator('.react-flow__node')).toHaveCount(4);
   await expect(page.getByRole('textbox',{name:'Graph name'})).toHaveValue('hello');
 });
