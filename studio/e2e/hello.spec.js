@@ -68,3 +68,18 @@ test('structured Runtime failure selects node and stale annotation clears on gra
   await expect(page.getByLabel('故障节点详情')).toHaveCount(0);
   await expect(page.locator('.unit-failed')).toHaveCount(0);
 });
+
+test('real Rust frame timeline links measured events back to canvas nodes', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.getByRole('button', {name:'查看逐帧轨迹'}).click();
+  const timeline = page.getByLabel('逐帧运行轨迹');
+  await expect(timeline).toContainText('已保留 3 条');
+  await expect(timeline).toContainText('upper · 帧 0');
+  await expect(timeline).toContainText('prefix · 帧 0');
+  await expect(timeline).toContainText('result · 帧 0');
+  await timeline.getByRole('button', {name:/upper · 帧 0/}).click();
+  await expect(page.locator('.react-flow__node.selected')).toContainText('text.uppercase');
+  await page.getByRole('textbox', {name:'Graph name'}).fill('changed');
+  await expect(page.getByLabel('逐帧运行轨迹')).toHaveCount(0);
+});
