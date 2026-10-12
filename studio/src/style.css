@@ -9,3 +9,11 @@
 .execution-state.failed{background:#6c2238;color:#ffe1e7}
 
 .failure-inspector{border:1px solid #fb7185;border-radius:8px;padding:10px;background:#351d2a}.failure-inspector pre{max-height:140px}.failure-inspector h4{margin:2px 0 6px}
+
+.trace-panel{margin-top:12px;padding-top:8px;border-top:1px solid #46596a}
+.trace-panel p{font-size:11px;line-height:1.5}
+.trace-event{display:grid;grid-template-columns:1fr;gap:4px;width:100%;margin:5px 0;padding:7px;border-radius:6px}
+.trace-event strong{font-size:11px}
+.trace-event small{font-size:10px;color:#a7c8d9}
+.trace-track{display:block;position:relative;height:10px;width:100%;background:#112334;border-radius:3px;overflow:hidden}
+.trace-bar{display:block;position:absolute;top:0;bottom:0;background:#37c9db;border-radius:3px}
