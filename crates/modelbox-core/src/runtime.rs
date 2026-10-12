@@ -234,28 +234,34 @@ fn remember_error(errors: &FirstError, cancelled: &AtomicBool, error: FlowError)
 }
 
 fn receive(
-    receiver: &Receiver<Frame>,
+    receiver: &EdgeReceiver,
     cancelled: &AtomicBool,
     node_id: &str,
     transport: Option<&TransportStore>,
+    edge_store: Option<&EdgeStore>,
 ) -> Option<Frame> {
-    let started = transport.map(|_| Instant::now());
+    let started = (transport.is_some() || edge_store.is_some()).then(Instant::now);
     let result = loop {
         if cancelled.load(Ordering::Acquire) {
             break None;
         }
-        match receiver.recv_timeout(Duration::from_millis(20)) {
+        match receiver.channel.recv_timeout(Duration::from_millis(20)) {
             Ok(frame) => break Some(frame),
             Err(RecvTimeoutError::Disconnected) => break None,
             Err(RecvTimeoutError::Timeout) => {}
         }
     };
-    if let (Some(store), Some(started)) = (transport, started) {
+    if let Some(started) = started {
         let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
-        let mut guard = store.lock().expect("transport mutex poisoned");
-        let sample = guard.entry(node_id.to_owned()).or_default();
-        sample.receive_operations += 1;
-        sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
+        if let Some(store) = transport {
+            let mut guard = store.lock().expect("transport mutex poisoned");
+            let sample = guard.entry(node_id.to_owned()).or_default();
+            sample.receive_operations += 1;
+            sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
+        }
+        if let Some(store) = edge_store {
+            store.record_receive(receiver.index, elapsed, result.as_ref());
+        }
     }
     result
 }
@@ -265,18 +271,25 @@ fn receive(
 fn send_frame(
     node_id: &str,
     port_name: &str,
-    sender: &Sender<Frame>,
+    sender: &EdgeSender,
     mut pending: Frame,
     cancelled: &AtomicBool,
     transport: Option<&TransportStore>,
+    edge_store: Option<&EdgeStore>,
 ) -> Result<()> {
-    let started = transport.map(|_| Instant::now());
+    let started = (transport.is_some() || edge_store.is_some()).then(Instant::now);
+    if let (Some(_), Some(started)) = (edge_store, started) {
+        pending.attempt = Some(EdgeAttempt {
+            index: sender.index,
+            started_at: started,
+        });
+    }
     let mut timeouts = 0;
     let result = loop {
         if cancelled.load(Ordering::Acquire) {
             break Ok(());
         }
-        match sender.send_timeout(pending, Duration::from_millis(20)) {
+        match sender.channel.send_timeout(pending, Duration::from_millis(20)) {
             Ok(()) => break Ok(()),
             Err(SendTimeoutError::Timeout(frame)) => {
                 pending = frame;
@@ -292,13 +305,18 @@ fn send_frame(
             }
         }
     };
-    if let (Some(store), Some(started)) = (transport, started) {
+    if let Some(started) = started {
         let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
-        let mut guard = store.lock().expect("transport mutex poisoned");
-        let sample = guard.entry(node_id.to_owned()).or_default();
-        sample.send_operations += 1;
-        sample.send_wall_ns = sample.send_wall_ns.saturating_add(elapsed);
-        sample.send_timeouts += timeouts;
+        if let Some(store) = transport {
+            let mut guard = store.lock().expect("transport mutex poisoned");
+            let sample = guard.entry(node_id.to_owned()).or_default();
+            sample.send_operations += 1;
+            sample.send_wall_ns = sample.send_wall_ns.saturating_add(elapsed);
+            sample.send_timeouts += timeouts;
+        }
+        if let Some(store) = edge_store {
+            store.record_send(sender.index, elapsed, timeouts);
+        }
     }
     result
 }
@@ -307,6 +325,7 @@ struct DispatchContext<'a> {
     captures: &'a Captures,
     cancelled: &'a AtomicBool,
     transport: Option<&'a TransportStore>,
+    edge_store: Option<&'a EdgeStore>,
 }
 
 fn dispatch(
@@ -314,7 +333,7 @@ fn dispatch(
     unit: &dyn FlowUnit,
     sequence: usize,
     values: Vec<Value>,
-    senders: &[Vec<Sender<Frame>>],
+    senders: &[Vec<EdgeSender>],
     context: &DispatchContext<'_>,
 ) -> Result<()> {
     if values.len() != unit.outputs().len() {
@@ -346,18 +365,25 @@ fn dispatch(
                     Frame {
                         sequence,
                         value: value.clone(),
+                        attempt: None,
                     },
                     context.cancelled,
                     context.transport,
+                    context.edge_store,
                 )?;
             }
             send_frame(
                 node_id,
                 port.name,
                 last,
-                Frame { sequence, value },
+                Frame {
+                    sequence,
+                    value,
+                    attempt: None,
+                },
                 context.cancelled,
                 context.transport,
+                context.edge_store,
             )?;
         } else {
             let key = format!("{node_id}.{}", port.name);
@@ -367,7 +393,11 @@ fn dispatch(
                 .expect("capture mutex poisoned")
                 .entry(key)
                 .or_default()
-                .push(Frame { sequence, value });
+                .push(Frame {
+                    sequence,
+                    value,
+                    attempt: None,
+                });
         }
     }
     Ok(())
@@ -377,14 +407,15 @@ struct Worker {
     node_id: String,
     unit: Arc<dyn FlowUnit>,
     config: JsonValue,
-    inputs: Vec<Receiver<Frame>>,
-    outputs: Vec<Vec<Sender<Frame>>>,
+    inputs: Vec<EdgeReceiver>,
+    outputs: Vec<Vec<EdgeSender>>,
     source_values: Option<Vec<Value>>,
     captures: Captures,
     cancelled: Arc<AtomicBool>,
     profile: Option<ProfileStore>,
     trace: Option<TraceStore>,
     transport: Option<TransportStore>,
+    edge_store: Option<EdgeStore>,
 }
 
 impl Worker {
@@ -393,6 +424,7 @@ impl Worker {
             captures: &self.captures,
             cancelled: self.cancelled.as_ref(),
             transport: self.transport.as_ref(),
+            edge_store: self.edge_store.as_ref(),
         };
         if let Some(values) = self.source_values {
             for (sequence, value) in values.into_iter().enumerate() {
@@ -420,6 +452,7 @@ impl Worker {
                 &self.cancelled,
                 &self.node_id,
                 self.transport.as_ref(),
+                self.edge_store.as_ref(),
             ) {
                 Some(frame) => frame,
                 None => break,
@@ -431,6 +464,7 @@ impl Worker {
                     &self.cancelled,
                     &self.node_id,
                     self.transport.as_ref(),
+                    self.edge_store.as_ref(),
                 ) {
                     Some(frame) if frame.sequence == first.sequence => values.push(frame.value),
                     Some(frame) => {
