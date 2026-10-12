@@ -331,9 +331,7 @@ fn traced_run_caps_event_storage_and_reports_dropped_samples() {
 fn transport_profile_preserves_outputs_and_records_channel_api_operations() {
     let spec = graph(HELLO);
     let runtime = Runtime::default();
-    let baseline = runtime
-        .run(&spec, Value::Text("hello".into()))
-        .unwrap();
+    let baseline = runtime.run(&spec, Value::Text("hello".into())).unwrap();
     let profiled = runtime
         .run_many_transport_profiled(&spec, vec![Value::Text("hello".into())])
         .unwrap();
