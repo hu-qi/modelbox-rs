@@ -141,3 +141,23 @@ test('unknown legacy plugins fail closed without mutating Studio graph', async (
   await expect(page.locator('.react-flow__node')).toHaveCount(4);
   await expect(page.getByRole('textbox',{name:'Graph name'})).toHaveValue('hello');
 });
+
+test('late Registry response must not overwrite an import error', async ({ page }) => {
+  let releaseCatalog;
+  const held = new Promise(resolve => { releaseCatalog = resolve; });
+  await page.route('**/api/catalog', async route => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles({
+    name:'blocked.dot', mimeType:'text/plain',
+    buffer:Buffer.from('digraph demo { src[type=input]; bad[type=flowunit,flowunit=missing_plugin]; dst[type=output]; src -> bad:in; bad:out -> dst; }')
+  });
+  await expect(page.getByRole('status')).toContainText('unsupported legacy FlowUnit');
+  const response = page.waitForResponse(r => r.url().includes('/api/catalog'));
+  releaseCatalog();
+  await response;
+  await expect(page.getByRole('status')).toContainText('unsupported legacy FlowUnit');
+  await expect(page.getByLabel('旧版迁移兼容性分析')).toContainText('unmapped_flowunit');
+});
