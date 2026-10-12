@@ -127,6 +127,7 @@ test('genuine legacy TOML graph is mapped, Rust validated, then executed', async
 
 test('unknown legacy plugins fail closed without mutating Studio graph', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
   await expect(page.locator('.react-flow__node')).toHaveCount(4);
   await page.locator('input[type=file]').setInputFiles({
     name:'unsupported.dot', mimeType:'text/plain',
