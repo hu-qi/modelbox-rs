@@ -7,3 +7,5 @@
 
 .unit.unit-failed{border-color:#fb7185;box-shadow:0 0 0 2px #fb718544}
 .execution-state.failed{background:#6c2238;color:#ffe1e7}
+
+.failure-inspector{border:1px solid #fb7185;border-radius:8px;padding:10px;background:#351d2a}.failure-inspector pre{max-height:140px}.failure-inspector h4{margin:2px 0 6px}
