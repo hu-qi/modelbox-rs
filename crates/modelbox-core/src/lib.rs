@@ -18,8 +18,8 @@ pub use error::FlowError;
 pub use flow_unit::{FlowRegistry, FlowUnit, FlowUnitDescriptor, PortDef, PortDescriptor};
 pub use graph::{EdgeSpec, ExecutionPlan, GraphSpec, NodeSpec};
 pub use runtime::{
-    NodeProfile, NodeTransportProfile, ProfiledRun, RunResult, Runtime, TraceEvent, TracedRun,
-    TransportProfiledRun,
+    EdgeChannelProfile, EdgeDeliveryEvent, EdgeTracedRun, NodeProfile, NodeTransportProfile,
+    ProfiledRun, RunResult, Runtime, TraceEvent, TracedRun, TransportProfiledRun,
 };
 pub use value::{DataType, TensorF32, Value};
 
