@@ -24,7 +24,7 @@ def invoke(action, payload):
     started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
-    elif action in ("validate", "run", "run-profile", "run-trace"):
+    elif action in ("validate", "run", "run-profile", "run-trace", "run-transport"):
         graph = payload.get("graph")
         if not isinstance(graph, dict):
             return 400, {"error": "graph must be an object"}
@@ -70,6 +70,12 @@ def invoke(action, payload):
                 "dropped_events": output["dropped_events"],
                 "diagnostics": diagnostics,
             }
+        if action == "run-transport":
+            return 200, {
+                "result": output["result"],
+                "node_transport": output["node_transport"],
+                "diagnostics": diagnostics,
+            }
         return 200, {"result": output, "diagnostics": diagnostics}
     return 200, {"message": result.stdout.strip(), "diagnostics": diagnostics}
 
@@ -100,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
