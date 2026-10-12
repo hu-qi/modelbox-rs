@@ -390,13 +390,15 @@ fn edge_delivery_trace_preserves_outputs_and_correlates_endpoint_frames() {
             event.attempt_to_receive_ns,
             event.receive_completed_ns - event.send_attempt_started_ns
         );
-        assert!(traced.edges.iter().any(|edge| {
-            edge.from == event.from && edge.to == event.to
-        }));
+        assert!(traced
+            .edges
+            .iter()
+            .any(|edge| { edge.from == event.from && edge.to == event.to }));
     }
-    assert!(traced.deliveries.windows(2).all(|pair| {
-        pair[0].receive_completed_ns <= pair[1].receive_completed_ns
-    }));
+    assert!(traced
+        .deliveries
+        .windows(2)
+        .all(|pair| { pair[0].receive_completed_ns <= pair[1].receive_completed_ns }));
 }
 
 #[test]
@@ -405,7 +407,9 @@ fn edge_delivery_trace_separates_fanout_links_and_bounds_sample_memory() {
     let inputs = (0..900)
         .map(|index| Value::Text(index.to_string()))
         .collect();
-    let traced = Runtime::default().run_many_edge_traced(&spec, inputs).unwrap();
+    let traced = Runtime::default()
+        .run_many_edge_traced(&spec, inputs)
+        .unwrap();
     assert_eq!(traced.result.input_count, 900);
     assert_eq!(traced.result.outputs["result.out"].len(), 900);
     assert_eq!(traced.edges.len(), 5);
@@ -416,7 +420,12 @@ fn edge_delivery_trace_separates_fanout_links_and_bounds_sample_memory() {
         assert_eq!(edge.delivered_frames, 900);
     }
     assert_eq!(
-        traced.edges.iter().map(|edge| &edge.from).filter(|from| *from == "source.out").count(),
+        traced
+            .edges
+            .iter()
+            .map(|edge| &edge.from)
+            .filter(|from| *from == "source.out")
+            .count(),
         2
     );
 }
