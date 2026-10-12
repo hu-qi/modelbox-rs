@@ -218,3 +218,133 @@ def convert_legacy(text, filename):
             "The Rust Runtime must validate ports, types, configs and graph topology before use.",
         ],
     }
+
+
+def analyze_legacy(text, filename):
+    """Read-only discovery of migration blockers; no driver/FlowUnit execution.
+
+    The report deliberately contains node IDs and option NAMES only; it never
+    echoes configuration values, which may contain credentials or URLs.
+    """
+    issues = []
+    nodes = []
+    edges = []
+    graph_text = None
+
+    def issue(code, detail, node_id=None):
+        if len(issues) < 100:
+            entry = {"code": code, "detail": detail}
+            if node_id is not None:
+                entry["node_id"] = node_id
+            if entry not in issues:
+                issues.append(entry)
+
+    if not isinstance(text, str) or len(text.encode("utf-8")) > 128 * 1024:
+        raise LegacyImportError("legacy graph must be UTF-8 text up to 128 KiB")
+    if filename.lower().endswith(".dot"):
+        graph_text = text
+    elif filename.lower().endswith((".toml", ".conf")):
+        try:
+            doc = tomllib.loads(text)
+        except tomllib.TOMLDecodeError as error:
+            raise LegacyImportError(f"invalid TOML: {error}") from error
+        other_sections = sorted(set(doc) - {"graph", "driver"})
+        if other_sections:
+            issue("unsupported_sections", f"additional TOML sections: {other_sections}")
+        driver = doc.get("driver", {})
+        if not isinstance(driver, dict) or set(driver) - {"dir"} or driver.get("dir", "") != "":
+            issue("custom_driver", "external driver configuration requires native implementation")
+        graph = doc.get("graph", {})
+        if not isinstance(graph, dict):
+            issue("invalid_graph_section", "expected [graph] table")
+        else:
+            extra_keys = sorted(set(graph) - {"format", "graphconf"})
+            if extra_keys:
+                issue("unsupported_graph_options", f"additional graph option names: {extra_keys}")
+            if graph.get("format") != "graphviz":
+                issue("unsupported_graph_format", 'expected format="graphviz"')
+            graph_text = graph.get("graphconf")
+    else:
+        raise LegacyImportError("expected .dot, .toml or .conf")
+
+    if not isinstance(graph_text, str):
+        issue("missing_graphconf", "[graph].graphconf must contain DOT text")
+    else:
+        match = DOT_HEAD.fullmatch(graph_text)
+        if not match:
+            issue("unsupported_dot", "expected simple digraph NAME { ... } without subgraphs")
+        else:
+            try:
+                statements = _split(match.group(2), ";\n\r")
+            except LegacyImportError:
+                statements = []
+                issue("dot_syntax", "malformed DOT statement delimiters or quoting")
+            seen = set()
+            for statement in statements:
+                if "->" in statement:
+                    match_edge = EDGE.fullmatch(statement)
+                    if not match_edge:
+                        issue("unsupported_edge", "edge must be a simple from:port -> to:port")
+                    else:
+                        from_id, from_port, to_id, to_port = match_edge.groups()
+                        edges.append({"from": from_id, "to": to_id})
+                    continue
+                match_node = NODE.fullmatch(statement)
+                if not match_node:
+                    issue("unsupported_statement", "DOT statement outside the supported node/edge subset")
+                    continue
+                node_id, raw_attrs = match_node.groups()
+                if node_id in seen:
+                    issue("duplicate_node", "duplicate node declaration", node_id)
+                seen.add(node_id)
+                try:
+                    attrs = _parse_attrs(raw_attrs)
+                except LegacyImportError:
+                    issue("unsupported_attrs", "invalid or unsupported node attribute format", node_id)
+                    continue
+                kind = attrs.get("type")
+                unit = attrs.get("flowunit") if kind == "flowunit" else (
+                    "core.input" if kind == "input" else "core.output" if kind == "output" else None
+                )
+                device = attrs.get("device", "cpu")
+                nodes.append({"id": node_id, "type": kind, "flowunit": unit, "device": device})
+                if kind not in ("input", "output", "flowunit"):
+                    issue("node_type", "unsupported node type", node_id)
+                elif kind == "flowunit":
+                    if unit not in UNITS:
+                        issue("unmapped_flowunit", f"no compatible Rust FlowUnit mapping for {unit!r}", node_id)
+                    if device != "cpu" or attrs.get("deviceid", "0") != "0":
+                        issue("device", "non-CPU or nonzero-deviceid driver unsupported", node_id)
+                    allowed = {"type", "flowunit", "device", "deviceid"}
+                    if unit in UNITS:
+                        allowed.update(UNITS[unit][2])
+                        missing = sorted(set(UNITS[unit][2]) - set(attrs))
+                        if missing:
+                            issue("missing_config", f"required option names: {missing}", node_id)
+                    extra = sorted(set(attrs) - allowed)
+                    if extra:
+                        issue("unmapped_options", f"unsupported option names: {extra}", node_id)
+                elif set(attrs) != {"type"}:
+                    issue("node_options", "input/output supports only type", node_id)
+            declared = {node["id"] for node in nodes}
+            for edge in edges:
+                if edge["from"] not in declared or edge["to"] not in declared:
+                    issue("undeclared_endpoint", "edge references undeclared node")
+
+    # This strict converter is the final syntactic gate. Even a clean report
+    # remains only a candidate: Rust Runtime validation is still required.
+    if not issues:
+        try:
+            convert_legacy(text, filename)
+        except LegacyImportError as error:
+            issue("unsupported_semantics", str(error))
+    return {
+        "source_format": "modelbox-graphviz",
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "nodes": nodes[:100],
+        "issues": issues,
+        "candidate_convertible": len(issues) == 0,
+        "requires_runtime_validation": True,
+        "inspection_only": True,
+    }
