@@ -26,6 +26,23 @@ pub struct Runtime {
 struct Frame {
     sequence: usize,
     value: Value,
+    attempt: Option<EdgeAttempt>,
+}
+
+#[derive(Clone)]
+struct EdgeAttempt {
+    index: usize,
+    started_at: Instant,
+}
+
+struct EdgeSender {
+    channel: Sender<Frame>,
+    index: usize,
+}
+
+struct EdgeReceiver {
+    channel: Receiver<Frame>,
+    index: usize,
 }
 
 type Captures = Arc<Mutex<BTreeMap<String, Vec<Frame>>>>;
@@ -33,6 +50,7 @@ type FirstError = Arc<Mutex<Option<FlowError>>>;
 type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
 type TransportStore = Arc<Mutex<BTreeMap<String, NodeTransportProfile>>>;
 const MAX_TRACE_EVENTS: usize = 4096;
+const MAX_EDGE_DELIVERIES: usize = 4096;
 
 /// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
 /// are not additive and do not represent graph end-to-end latency.
@@ -66,6 +84,104 @@ pub struct TransportProfiledRun {
     pub result: RunResult,
     pub node_transport: BTreeMap<String, NodeTransportProfile>,
 }
+
+
+/// API-level per-edge measurements; neither duration is pure queue residence.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct EdgeChannelProfile {
+    pub from: String,
+    pub to: String,
+    pub send_operations: usize,
+    pub send_wall_ns: u64,
+    pub send_timeouts: usize,
+    /// Includes the final end-of-stream receive probe.
+    pub receive_operations: usize,
+    pub receive_wall_ns: u64,
+    pub delivered_frames: usize,
+}
+
+/// Interval measured from the start of a send attempt to completed receive.
+/// Includes bounded-channel backpressure and scheduling, NOT queue-only dwell.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EdgeDeliveryEvent {
+    pub from: String,
+    pub to: String,
+    pub sequence: usize,
+    pub send_attempt_started_ns: u64,
+    pub receive_completed_ns: u64,
+    pub attempt_to_receive_ns: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EdgeTracedRun {
+    pub result: RunResult,
+    pub edges: Vec<EdgeChannelProfile>,
+    pub deliveries: Vec<EdgeDeliveryEvent>,
+    pub dropped_deliveries: usize,
+}
+
+struct EdgeTraceBuffer {
+    edges: Vec<EdgeChannelProfile>,
+    deliveries: Vec<EdgeDeliveryEvent>,
+    dropped_deliveries: usize,
+}
+
+struct EdgeCollector {
+    origin: Instant,
+    buffer: Mutex<EdgeTraceBuffer>,
+}
+
+impl EdgeCollector {
+    fn record_send(&self, index: usize, elapsed_ns: u64, timeouts: usize) {
+        let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
+        let edge = &mut buffer.edges[index];
+        edge.send_operations += 1;
+        edge.send_wall_ns = edge.send_wall_ns.saturating_add(elapsed_ns);
+        edge.send_timeouts += timeouts;
+    }
+
+    fn record_receive(&self, index: usize, elapsed_ns: u64, frame: Option<&Frame>) {
+        let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
+        {
+            let edge = &mut buffer.edges[index];
+            edge.receive_operations += 1;
+            edge.receive_wall_ns = edge.receive_wall_ns.saturating_add(elapsed_ns);
+            if frame.is_some() {
+                edge.delivered_frames += 1;
+            }
+        }
+        if let Some(stamp) = frame.and_then(|frame| frame.attempt.as_ref()) {
+            debug_assert_eq!(stamp.index, index);
+            if buffer.deliveries.len() < MAX_EDGE_DELIVERIES {
+                let frame = frame.expect("stamp requires a frame");
+                let edge = &buffer.edges[index];
+                let delivered_at = Instant::now();
+                buffer.deliveries.push(EdgeDeliveryEvent {
+                    from: edge.from.clone(),
+                    to: edge.to.clone(),
+                    sequence: frame.sequence,
+                    send_attempt_started_ns: stamp
+                        .started_at
+                        .duration_since(self.origin)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX)) as u64,
+                    receive_completed_ns: delivered_at
+                        .duration_since(self.origin)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX)) as u64,
+                    attempt_to_receive_ns: delivered_at
+                        .duration_since(stamp.started_at)
+                        .as_nanos()
+                        .min(u128::from(u64::MAX)) as u64,
+                });
+            } else {
+                buffer.dropped_deliveries += 1;
+            }
+        }
+    }
+}
+
+type EdgeStore = Arc<EdgeCollector>;
 
 /// A bounded per-frame FlowUnit process interval (monotonic clock, not wall time).
 /// Events contain no input/output payloads or tensor contents.
