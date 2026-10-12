@@ -35,11 +35,13 @@ struct EdgeAttempt {
     started_at: Instant,
 }
 
+#[derive(Clone)]
 struct EdgeSender {
     channel: Sender<Frame>,
     index: usize,
 }
 
+#[derive(Clone)]
 struct EdgeReceiver {
     channel: Receiver<Frame>,
     index: usize,
@@ -140,7 +142,7 @@ impl EdgeCollector {
         edge.send_timeouts += timeouts;
     }
 
-    fn record_receive(&self, index: usize, elapsed_ns: u64, frame: Option<&Frame>) {
+    fn record_receive(&self, index: usize, elapsed_ns: u64, frame: Option<&Frame>, completed_at: Instant) {
         let mut buffer = self.buffer.lock().expect("edge mutex poisoned");
         {
             let edge = &mut buffer.edges[index];
@@ -154,22 +156,24 @@ impl EdgeCollector {
             debug_assert_eq!(stamp.index, index);
             if buffer.deliveries.len() < MAX_EDGE_DELIVERIES {
                 let frame = frame.expect("stamp requires a frame");
-                let edge = &buffer.edges[index];
-                let delivered_at = Instant::now();
+                let (from, to) = {
+                    let edge = &buffer.edges[index];
+                    (edge.from.clone(), edge.to.clone())
+                };
                 buffer.deliveries.push(EdgeDeliveryEvent {
-                    from: edge.from.clone(),
-                    to: edge.to.clone(),
+                    from,
+                    to,
                     sequence: frame.sequence,
                     send_attempt_started_ns: stamp
                         .started_at
                         .duration_since(self.origin)
                         .as_nanos()
                         .min(u128::from(u64::MAX)) as u64,
-                    receive_completed_ns: delivered_at
+                    receive_completed_ns: completed_at
                         .duration_since(self.origin)
                         .as_nanos()
                         .min(u128::from(u64::MAX)) as u64,
-                    attempt_to_receive_ns: delivered_at
+                    attempt_to_receive_ns: completed_at
                         .duration_since(stamp.started_at)
                         .as_nanos()
                         .min(u128::from(u64::MAX)) as u64,
@@ -252,7 +256,11 @@ fn receive(
         }
     };
     if let Some(started) = started {
-        let elapsed = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+        let completed_at = Instant::now();
+        let elapsed = completed_at
+            .duration_since(started)
+            .as_nanos()
+            .min(u128::from(u64::MAX)) as u64;
         if let Some(store) = transport {
             let mut guard = store.lock().expect("transport mutex poisoned");
             let sample = guard.entry(node_id.to_owned()).or_default();
@@ -260,7 +268,7 @@ fn receive(
             sample.receive_wall_ns = sample.receive_wall_ns.saturating_add(elapsed);
         }
         if let Some(store) = edge_store {
-            store.record_receive(receiver.index, elapsed, result.as_ref());
+            store.record_receive(receiver.index, elapsed, result.as_ref(), completed_at);
         }
     }
     result
