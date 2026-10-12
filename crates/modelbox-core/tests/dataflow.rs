@@ -366,3 +366,57 @@ fn transport_profile_works_with_bounded_fanout_under_backpressure() {
         .sum();
     assert_eq!(total_sends, 250 * 5);
 }
+
+#[test]
+fn edge_delivery_trace_preserves_outputs_and_correlates_endpoint_frames() {
+    let spec = graph(HELLO);
+    let runtime = Runtime::default();
+    let inputs = vec![Value::Text("hello".into()), Value::Text("world".into())];
+    let baseline = runtime.run_many(&spec, inputs.clone()).unwrap();
+    let traced = runtime.run_many_edge_traced(&spec, inputs).unwrap();
+    assert_eq!(traced.result.outputs, baseline.outputs);
+    assert_eq!(traced.result.input_count, 2);
+    assert_eq!(traced.edges.len(), 3);
+    assert_eq!(traced.deliveries.len(), 6);
+    assert_eq!(traced.dropped_deliveries, 0);
+    for edge in &traced.edges {
+        assert_eq!(edge.send_operations, 2);
+        assert_eq!(edge.delivered_frames, 2);
+        assert!(edge.receive_operations >= 2);
+    }
+    for event in &traced.deliveries {
+        assert!(event.receive_completed_ns >= event.send_attempt_started_ns);
+        assert_eq!(
+            event.attempt_to_receive_ns,
+            event.receive_completed_ns - event.send_attempt_started_ns
+        );
+        assert!(traced.edges.iter().any(|edge| {
+            edge.from == event.from && edge.to == event.to
+        }));
+    }
+    assert!(traced.deliveries.windows(2).all(|pair| {
+        pair[0].receive_completed_ns <= pair[1].receive_completed_ns
+    }));
+}
+
+#[test]
+fn edge_delivery_trace_separates_fanout_links_and_bounds_sample_memory() {
+    let spec = graph(FANOUT);
+    let inputs = (0..900)
+        .map(|index| Value::Text(index.to_string()))
+        .collect();
+    let traced = Runtime::default().run_many_edge_traced(&spec, inputs).unwrap();
+    assert_eq!(traced.result.input_count, 900);
+    assert_eq!(traced.result.outputs["result.out"].len(), 900);
+    assert_eq!(traced.edges.len(), 5);
+    assert_eq!(traced.deliveries.len(), 4096);
+    assert_eq!(traced.dropped_deliveries, 900 * 5 - 4096);
+    for edge in &traced.edges {
+        assert_eq!(edge.send_operations, 900);
+        assert_eq!(edge.delivered_frames, 900);
+    }
+    assert_eq!(
+        traced.edges.iter().map(|edge| &edge.from).filter(|from| *from == "source.out").count(),
+        2
+    );
+}
