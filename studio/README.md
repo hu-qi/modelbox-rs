@@ -61,3 +61,17 @@ DOM nodes; the retained/dropped/displayed counts are shown separately. The
 timeline is not a queue/transport trace, an inference-only latency graph or a
 complete scheduling profile. Events contain no payloads. Failed runs currently
 return errors without a partial timeline.
+
+## Channel API timing (experimental)
+
+Click **查看通道API计时** to invoke `modelbox run-transport`.
+Studio displays actual bounded-channel send and receive API invocation counts,
+aggregate measured call wall times, and 20 ms send timeout retries, grouped by
+FlowUnit worker. Editing GraphSpec invalidates the displayed diagnostic panel.
+
+**Important:** receive wall time includes upstream computation, worker
+scheduling and end-of-stream probes; send wall time includes bounded-channel
+backpressure but also API and scheduler overhead. They do **not** isolate
+per-edge data residency, congestion, pure transport latency or model inference
+time. Measurements add overhead and should not be compared directly against
+Release-mode uninstrumented benchmarks.
