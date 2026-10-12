@@ -75,3 +75,22 @@ backpressure but also API and scheduler overhead. They do **not** isolate
 per-edge data residency, congestion, pure transport latency or model inference
 time. Measurements add overhead and should not be compared directly against
 Release-mode uninstrumented benchmarks.
+
+## Per-Edge delivery inspector
+
+Click **分析逐边交付** to invoke the real `modelbox run-edges` command.
+The React Flow graph labels each known Edge with its measured delivered-frame
+count. The inspector lists each validated `from` → `to` port, per-link
+send/receive counts, measured channel call wall-time, timeout retries, and
+monotonic frame delivery intervals. Click a link to select its downstream
+FlowUnit. Changing the GraphSpec hides any stale measurements and labels.
+
+To bound rendering, the inspector shows up to 25 Edge summaries and the first
+30 of the maximum 4,096 retained frame-delivery events; full retained/dropped
+counts remain visible. Runtime does not retain frame payloads in the trace.
+
+**Measurement accuracy:** delivery intervals start *before* a bounded send
+attempt, not at the exact instant of enqueue, so they include send blocking
+(backpressure) and scheduling overhead. These are *not* precise per-Edge queue
+residence values or network latency, and the UI must not label them as such.
+The collector is opt-in and unsuitable for uninstrumented Release baselines.
