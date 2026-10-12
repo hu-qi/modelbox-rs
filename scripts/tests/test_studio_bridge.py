@@ -86,3 +86,19 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(data["events"][0]["node_id"], "upper")
         self.assertEqual(data["dropped_events"], 0)
         self.assertEqual(mock.call_args.args[0], "run-trace")
+
+    def test_transport_run_forwards_measured_channel_api_metrics(self):
+        graph = {"name": "hello", "nodes": [], "edges": []}
+        stdout = json.dumps({
+            "result": {"outputs": {}, "input_count": 1},
+            "node_transport": {
+                "source": {"receive_operations": 0, "receive_wall_ns": 0,
+                           "send_operations": 1, "send_wall_ns": 100, "send_timeouts": 0}
+            },
+        })
+        with patch.object(bridge, "cargo", return_value=SimpleNamespace(returncode=0, stdout=stdout, stderr="")) as mock:
+            code, data = bridge.invoke("run-transport", {"graph": graph, "input": "hello"})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["result"]["input_count"], 1)
+        self.assertEqual(data["node_transport"]["source"]["send_operations"], 1)
+        self.assertEqual(mock.call_args.args[0], "run-transport")
