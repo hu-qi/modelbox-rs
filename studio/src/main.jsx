@@ -104,8 +104,21 @@ function App(){
   async function load(event){
     const file=event.target.files?.[0];if(!file)return;
     if(!guardSaved()){event.target.value='';return;}
-    try{const json=JSON.parse(await file.text());const graph=json.graph||json;if(!Array.isArray(graph.nodes)||!Array.isArray(graph.edges))throw Error('缺少 GraphSpec nodes/edges');
-      setName(graph.name);setCapacity(graph.queue_capacity??16);setNodes(xyNodes(graph,json.positions));setEdges(xyEdges(graph));setSelected(null);setConfigDirty(false);setStatus('已导入 '+file.name);
+    try{
+      let json,description='已导入 '+file.name;
+      if(/\.(dot|toml|conf)$/i.test(file.name)){
+        if(file.size>128*1024)throw Error('旧版配置不能超过 128 KiB');
+        const response=await fetch('/api/import-legacy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:file.name,legacy_text:await file.text()})});
+        const migrated=await response.json();
+        if(!response.ok)throw Error(migrated.error||'旧版迁移失败');
+        json={graph:migrated.graph};
+        description='已迁移兼容子集 '+file.name+'（'+migrated.report.node_count+' 节点 / '+migrated.report.edge_count+' 连线，Rust 校验通过）；旧版驱动未迁移';
+      }else{
+        json=JSON.parse(await file.text());
+      }
+      const graph=json.graph||json;
+      if(!Array.isArray(graph.nodes)||!Array.isArray(graph.edges))throw Error('缺少 GraphSpec nodes/edges');
+      setName(graph.name);setCapacity(graph.queue_capacity??16);setNodes(xyNodes(graph,json.positions));setEdges(xyEdges(graph));setSelected(null);setConfigDirty(false);setStatus(description);
     }catch(e){setStatus('导入失败：'+e.message);}event.target.value='';
   }
   const current=nodes.find(n=>n.id===selected);
@@ -117,7 +130,7 @@ function App(){
       <main><ReactFlow nodes={flowNodes} edges={flowEdges} nodeTypes={nodeTypes} onNodesChange={c=>setNodes(n=>applyNodeChanges(c,n))} onEdgesChange={c=>setEdges(e=>applyEdgeChanges(c,e))} onConnect={onConnect} onNodeClick={(_,n)=>setSelected(n.id)} onPaneClick={()=>setSelected(null)} fitView><Background/><Controls/><MiniMap/></ReactFlow></main>
       <section><h3>属性与运行</h3>{current?<><div>节点：{current.id}</div><div>算子：{current.data.unit}</div><label>配置 JSON<textarea value={configDraft} onChange={e=>{setConfigDraft(e.target.value);setConfigDirty(true);}}/></label><button onClick={applyConfig}>应用节点配置</button><button onClick={()=>{setNodes(ns=>ns.filter(n=>n.id!==current.id));setEdges(es=>es.filter(e=>e.source!==current.id&&e.target!==current.id));setSelected(null);}}>删除节点</button></>:<p>单击节点以修改配置。选择连线后按 Delete 可删除。</p>}
       {activeFailure&&<div className="failure-inspector" aria-label="故障节点详情"><h4>Runtime 故障定位</h4><p>节点：<strong>{activeFailure.nodeId}</strong></p><pre>{activeFailure.message}</pre><button onClick={()=>{if(configDirty){setStatus('请先应用当前配置再定位故障节点');return;}setSelected(activeFailure.nodeId);}}>选择故障节点</button><p>此标记来自 Rust Runtime 的结构化节点 ID。编辑 Graph 后自动失效。</p></div>}
-      <h4>Graph 文件</h4><button onClick={()=>{if(guardSaved())download(name+'.json',spec());}}>导出 GraphSpec</button><button onClick={()=>{if(guardSaved())download(name+'.studio.json',{graph:spec(),positions:Object.fromEntries(nodes.map(n=>[n.id,n.position]))});}}>保存画布</button><label className="upload">导入 JSON<input type="file" accept=".json,application/json" onChange={load}/></label>
+      <h4>Graph 文件</h4><button onClick={()=>{if(guardSaved())download(name+'.json',spec());}}>导出 GraphSpec</button><button onClick={()=>{if(guardSaved())download(name+'.studio.json',{graph:spec(),positions:Object.fromEntries(nodes.map(n=>[n.id,n.position]))});}}>保存画布</button><label className="upload">导入 JSON<input type="file" accept=".json,.dot,.toml,.conf,application/json,text/plain" onChange={load}/></label>
       <h4>Rust Runtime</h4><input value={input} onChange={e=>setInput(e.target.value)} aria-label="运行输入文本"/><button disabled={busy} onClick={()=>execute('validate')}>校验 Graph</button><button disabled={busy} onClick={()=>execute('run')}>执行 Graph</button><button disabled={busy} onClick={()=>execute('run-profile')}>分析节点耗时</button><button disabled={busy} onClick={()=>execute('run-trace')}>查看逐帧轨迹</button><button disabled={busy} onClick={()=>execute('run-transport')}>查看通道API计时</button><button disabled={busy} onClick={()=>execute('run-edges')}>分析逐边交付</button><pre role="status">{status}</pre>{lastRun&&<div className="run-report" aria-label="Runtime 诊断"><h4>{lastRun.ok?'完成':'错误'} · {lastRun.action}</h4>{lastRun.diagnostics&&<p>CLI 端到端耗时：{lastRun.diagnostics.elapsed_ms} ms（含进程启动/可能的编译，非推理耗时）</p>}{lastRun.error&&<pre role="alert">{lastRun.error}</pre>}{lastRun.message&&<pre>{lastRun.message}</pre>}{lastRun.result&&<><p>输入数量：{lastRun.result.input_count}</p><pre>{JSON.stringify(lastRun.result.outputs,null,2)}</pre></>}{lastRun.node_process&&<div aria-label="节点处理耗时"><h4>FlowUnit 处理统计（不含调度及队列）</h4>{Object.entries(lastRun.node_process).map(([id,p])=><p key={id}><strong>{id}</strong> · {p.calls} 次 · {(p.process_ns/1e6).toFixed(3)} ms 累计</p>)}<p>各节点可能并行，耗时不能相加视为整图延迟。</p></div>}{lastRun.node_transport && lastRun.graph===JSON.stringify(spec()) && <div aria-label="通道API计时"><h4>有界通道 API 耗时</h4><p>接收耗时包括上游处理与调度等待；发送耗时包括接口开销与背压。不是纯队列等待或网络延迟。</p>{Object.entries(lastRun.node_transport).map(([id,p])=><div className="channel-profile" key={id}><strong>{id}</strong><p>接收 {p.receive_operations} 次 · {(p.receive_wall_ns/1e6).toFixed(3)} ms</p><p>发送 {p.send_operations} 次 · {(p.send_wall_ns/1e6).toFixed(3)} ms · 超时重试 {p.send_timeouts} 次</p></div>)}</div>}{lastRun.edge_profiles && lastRun.deliveries && lastRun.graph===JSON.stringify(spec()) && <EdgePanel edges={lastRun.edge_profiles} deliveries={lastRun.deliveries} dropped={lastRun.dropped_deliveries} onSelect={setSelected}/>} {lastRun.events && lastRun.graph===JSON.stringify(spec()) && <TracePanel events={lastRun.events} droppedEvents={lastRun.dropped_events} onSelect={setSelected}/>}</div>}</section></div></div>;
 }
 createRoot(document.getElementById('root')).render(<App/>);
