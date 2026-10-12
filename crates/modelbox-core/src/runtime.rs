@@ -33,7 +33,6 @@ type FirstError = Arc<Mutex<Option<FlowError>>>;
 type ProfileStore = Arc<Mutex<BTreeMap<String, NodeProfile>>>;
 const MAX_TRACE_EVENTS: usize = 4096;
 
-
 /// Aggregate time inside FlowUnit::process_owned only. Overlapping worker times
 /// are not additive and do not represent graph end-to-end latency.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
