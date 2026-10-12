@@ -308,9 +308,10 @@ fn traced_run_preserves_outputs_and_reports_per_frame_intervals() {
             );
         }
     }
-    assert!(traced.events.windows(2).all(|pair| {
-        pair[0].process_started_ns <= pair[1].process_started_ns
-    }));
+    assert!(traced
+        .events
+        .windows(2)
+        .all(|pair| { pair[0].process_started_ns <= pair[1].process_started_ns }));
 }
 
 #[test]
