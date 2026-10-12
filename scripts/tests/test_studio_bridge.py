@@ -170,3 +170,25 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(code, 422)
         self.assertIn("unsupported legacy FlowUnit", response["error"])
         mock.assert_not_called()
+
+    def test_preflight_is_read_only_and_does_not_invoke_rust(self):
+        dot = 'digraph demo { src[type=input]; gpu[type=flowunit,flowunit=resize,device=cuda]; dst[type=output]; src -> gpu:in; gpu:out -> dst; }'
+        with patch.object(bridge, "cargo") as mocked:
+            status, body = bridge.invoke("analyze-legacy", {
+                "filename": "legacy.dot", "legacy_text": dot,
+            })
+        self.assertEqual(status, 200)
+        self.assertFalse(body["report"]["candidate_convertible"])
+        self.assertIn("unmapped_flowunit", {issue["code"] for issue in body["report"]["issues"]})
+        mocked.assert_not_called()
+
+    def test_failed_import_attaches_aggregated_blockers(self):
+        dot = 'digraph demo { src[type=input]; gpu[type=flowunit,flowunit=resize,device=cuda]; dst[type=output]; src -> gpu:in; gpu:out -> dst; }'
+        with patch.object(bridge, "cargo") as mocked:
+            status, body = bridge.invoke("import-legacy", {
+                "filename": "legacy.dot", "legacy_text": dot,
+            })
+        self.assertEqual(status, 422)
+        self.assertEqual(body["report"]["node_count"], 3)
+        self.assertGreaterEqual(len(body["report"]["issues"]), 2)
+        mocked.assert_not_called()
