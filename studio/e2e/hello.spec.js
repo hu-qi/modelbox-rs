@@ -83,3 +83,17 @@ test('real Rust frame timeline links measured events back to canvas nodes', asyn
   await page.getByRole('textbox', {name:'Graph name'}).fill('changed');
   await expect(page.getByLabel('逐帧运行轨迹')).toHaveCount(0);
 });
+
+test('actual Rust channel API diagnostic values are shown and invalidated', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.getByRole('button', {name:'查看通道API计时'}).click();
+  const panel=page.getByLabel('通道API计时');
+  await expect(panel).toContainText('source');
+  await expect(panel).toContainText('upper');
+  await expect(panel).toContainText('接收');
+  await expect(panel).toContainText('发送');
+  await expect(panel).toContainText('背压');
+  await page.getByRole('textbox', {name:'Graph name'}).fill('changed');
+  await expect(page.getByLabel('通道API计时')).toHaveCount(0);
+});
