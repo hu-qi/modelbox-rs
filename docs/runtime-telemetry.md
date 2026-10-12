@@ -55,3 +55,31 @@ Telemetry is disabled for ordinary `run` and `run-trace`. Instrumentation
 adds overhead and should not be used as a replacement for uninstrumented
 Release graph-vs-direct benchmarks. A future Studio integration may present
 these counters, with their limitations, separately from process-time traces.
+
+
+## Per-Edge delivery events (experimental)
+
+`modelbox run-edges examples/hello.json "hello"` returns the standard
+`result`, per-link `edges` statistics, up to **4,096** `deliveries` and a
+`dropped_deliveries` counter. Each Edge is labeled with its exact validated
+`from` and `to` ports, including separate fan-out links.
+
+A delivery correlates the source/destination ports and input `sequence` with
+a monotonic **send-attempt start** and **receive completion** timestamp, plus
+their interval. This is measured in Rust at the actual bounded-channel
+interfaces. The interval includes any bounded-send backpressure, worker
+scheduling and channel API overhead; it is **NOT a precise queue-residence
+time** or a network latency. It must not be subtracted from the FlowUnit
+process trace to infer scheduler overhead.
+
+Per-Edge counters report send/receive calls, the wall time spent inside those
+calls, 20 ms send-timeout retries, and successfully delivered frames. Receive
+call counts include final end-of-stream probes, so receive count can exceed
+delivered frames. Events and counters contain no input/output payload content.
+The regular `run` path does not record Edge timestamps. Results and timeline
+events are available for successful runs only; partial failed-run traces are
+not exposed yet. Collection adds overhead and is not a Release benchmark.
+
+These events are an attribution foundation; future work can integrate Edge
+visualizations in Studio and explore tighter queue-residence instrumentation
+without mislabeling send-attempt intervals as exact enqueue timestamps.
