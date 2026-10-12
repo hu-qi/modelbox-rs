@@ -46,3 +46,18 @@ CI builds the frontend and unit-tests bridge fixed-argument behavior. Manual acc
 ## Run diagnostics (initial)
 
 The run panel displays actual CLI output, errors, and a measured `bridge_cli_wall_time` in milliseconds. This interval includes Rust CLI process startup and may include a cold Cargo compilation; **it is not a FlowUnit timing, pure Graph scheduler overhead, or model inference latency**. Runtime traces and per-node timing remain future work.
+
+## Real per-frame timeline (experimental)
+
+Click **查看逐帧轨迹** to invoke `modelbox run-trace` through the existing
+localhost bridge. Studio shows the retained `process_owned` events in their
+actual monotonic timestamp order, with node ID, input sequence, relative start,
+duration, and completion status. Select a timeline event to select its node
+in the React Flow canvas. Changing the executable GraphSpec hides stale events.
+
+The runtime bounds the trace at 4,096 events and counts dropped events.
+The panel displays at most the first 100 retained events to avoid thousands of
+DOM nodes; the retained/dropped/displayed counts are shown separately. The
+timeline is not a queue/transport trace, an inference-only latency graph or a
+complete scheduling profile. Events contain no payloads. Failed runs currently
+return errors without a partial timeline.
