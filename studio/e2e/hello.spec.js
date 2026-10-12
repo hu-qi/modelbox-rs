@@ -107,7 +107,7 @@ test('real Rust Edge tracing shows link identity and invalidates stale statistic
   await expect(panel).toContainText('已保留 3 条逐帧交付事件');
   await expect(panel).toContainText('source.out → upper.in');
   await expect(panel).toContainText('upper.out → prefix.in');
-  await expect(panel).toContainText('不是');
+  await expect(panel).toContainText('不能视为精确的队列驻留时间');
   await panel.locator('.edge-entry').first().click();
   await expect(page.locator('.react-flow__node.selected')).toContainText('text.uppercase');
   await page.getByRole('textbox',{name:'Graph name'}).fill('changed');
