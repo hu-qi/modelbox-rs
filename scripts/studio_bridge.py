@@ -46,7 +46,12 @@ def invoke(action, payload):
         try:
             graph, report = convert_legacy(legacy_text, filename)
         except LegacyImportError as error:
-            return 422, {"error": str(error)}
+            detail = {"error": str(error)}
+            try:
+                detail["report"] = analyze_legacy(legacy_text, filename)
+            except LegacyImportError:
+                pass
+            return 422, detail
         # Parsing alone is NOT enough. Rust Runtime is the source of truth for
         # topology, types, required config and all port definitions.
         with tempfile.TemporaryDirectory(prefix="modelbox-legacy-") as temp:
