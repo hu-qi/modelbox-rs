@@ -17,3 +17,7 @@
 .trace-event small{font-size:10px;color:#a7c8d9}
 .trace-track{display:block;position:relative;height:10px;width:100%;background:#112334;border-radius:3px;overflow:hidden}
 .trace-bar{display:block;position:absolute;top:0;bottom:0;background:#37c9db;border-radius:3px}
+
+.channel-profile{border-bottom:1px solid #435566;padding:7px 0}
+.channel-profile strong{font-size:12px}
+.channel-profile p{margin:4px 0;font-size:11px;color:#b9cfde}
