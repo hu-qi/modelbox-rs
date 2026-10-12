@@ -54,7 +54,7 @@ fn usage() -> &'static str {
   modelbox bench-transport-yolov8 <image.jpg|png> [rounds] [warmup]   (requires --features onnx)
 
 Text examples use core.input; ONNX inference is an opt-in feature.
-Graph JSON is the native v0.1 format; legacy DOT/TOML import is not yet supported."
+Graph JSON is the native v0.1 CLI format; Studio supports a strict legacy DOT/TOML CPU-text import subset via the local bridge."
 }
 
 fn main() {
