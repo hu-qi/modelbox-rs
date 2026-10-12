@@ -24,7 +24,7 @@ def invoke(action, payload):
     started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
-    elif action in ("validate", "run", "run-profile", "run-trace"):
+    elif action in ("validate", "run", "run-profile", "run-trace", "run-transport"):
         graph = payload.get("graph")
         if not isinstance(graph, dict):
             return 400, {"error": "graph must be an object"}
@@ -32,7 +32,7 @@ def invoke(action, payload):
         with tempfile.TemporaryDirectory(prefix="modelbox-studio-") as temp:
             path = pathlib.Path(temp) / "graph.json"
             path.write_text(json.dumps(graph), encoding="utf-8")
-            if action in ("run", "run-profile", "run-trace"):
+            if action in ("run", "run-profile", "run-trace", "run-transport"):
                 value = payload.get("input")
                 if not isinstance(value, str) or len(value) > 4096:
                     return 400, {"error": "input must be a text string of at most 4096 characters"}
@@ -59,7 +59,7 @@ def invoke(action, payload):
         return 422, detail
     if action == "catalog":
         return 200, json.loads(result.stdout)
-    if action in ("run", "run-profile", "run-trace"):
+    if action in ("run", "run-profile", "run-trace", "run-transport"):
         output = json.loads(result.stdout)
         if action == "run-profile":
             return 200, {"result": output["result"], "node_process": output["node_process"], "diagnostics": diagnostics}
@@ -68,6 +68,12 @@ def invoke(action, payload):
                 "result": output["result"],
                 "events": output["events"],
                 "dropped_events": output["dropped_events"],
+                "diagnostics": diagnostics,
+            }
+        if action == "run-transport":
+            return 200, {
+                "result": output["result"],
+                "node_transport": output["node_transport"],
                 "diagnostics": diagnostics,
             }
         return 200, {"result": output, "diagnostics": diagnostics}
@@ -100,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
