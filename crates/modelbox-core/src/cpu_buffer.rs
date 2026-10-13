@@ -47,7 +47,9 @@ impl CpuBuffer {
             || metadata.keys().any(|key| {
                 key.is_empty()
                     || key.len() > 128
-                    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                    || !key
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
             })
         {
             return Err(FlowError::Execution(
@@ -102,8 +104,7 @@ impl From<CpuBuffer> for CpuBufferRepr {
     fn from(value: CpuBuffer) -> Self {
         Self {
             data: Arc::try_unwrap(value.data).unwrap_or_else(|shared| (*shared).clone()),
-            metadata: Arc::try_unwrap(value.metadata)
-                .unwrap_or_else(|shared| (*shared).clone()),
+            metadata: Arc::try_unwrap(value.metadata).unwrap_or_else(|shared| (*shared).clone()),
         }
     }
 }
@@ -153,10 +154,8 @@ mod tests {
         assert!(serde_json::from_str::<CpuBuffer>(complex_meta).is_err());
         let illegal_byte = r#"{"data":[256],"metadata":{}}"#;
         assert!(serde_json::from_str::<CpuBuffer>(illegal_byte).is_err());
-        let huge_meta = BTreeMap::from([(
-            "note".to_owned(),
-            BufferMetaValue::Text("x".repeat(4097)),
-        )]);
+        let huge_meta =
+            BTreeMap::from([("note".to_owned(), BufferMetaValue::Text("x".repeat(4097)))]);
         assert!(CpuBuffer::new(Vec::new(), huge_meta).is_err());
     }
 }
