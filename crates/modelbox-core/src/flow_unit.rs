@@ -60,6 +60,10 @@ impl Default for FlowRegistry {
             "text.uppercase",
             "text.prefix",
             "text.concat",
+            "buffer.input",
+            "buffer.output",
+            "buffer.identity",
+            "buffer.deep_copy",
         ] {
             registry
                 .register(Arc::new(Builtin { name }))
@@ -98,6 +102,8 @@ impl FlowRegistry {
 const NONE: [PortDef; 0] = [];
 const INPUT_TEXT: [PortDef; 1] = [PortDef::new("in", DataType::Text)];
 const OUTPUT_TEXT: [PortDef; 1] = [PortDef::new("out", DataType::Text)];
+const INPUT_BUFFER: [PortDef; 1] = [PortDef::new("in", DataType::CpuBuffer)];
+const OUTPUT_BUFFER: [PortDef; 1] = [PortDef::new("out", DataType::CpuBuffer)];
 const INPUT_TENSOR: [PortDef; 1] = [PortDef::new("in", DataType::TensorF32)];
 const OUTPUT_TENSOR: [PortDef; 1] = [PortDef::new("out", DataType::TensorF32)];
 const CONCAT_TEXT: [PortDef; 2] = [
@@ -116,8 +122,9 @@ impl FlowUnit for Builtin {
 
     fn inputs(&self) -> &'static [PortDef] {
         match self.name {
-            "core.input" | "tensor.input" => &NONE,
+            "core.input" | "tensor.input" | "buffer.input" => &NONE,
             "tensor.output" => &INPUT_TENSOR,
+            "buffer.output" | "buffer.identity" | "buffer.deep_copy" => &INPUT_BUFFER,
             "text.concat" => &CONCAT_TEXT,
             _ => &INPUT_TEXT,
         }
@@ -126,15 +133,24 @@ impl FlowUnit for Builtin {
     fn outputs(&self) -> &'static [PortDef] {
         match self.name {
             "tensor.input" | "tensor.output" => &OUTPUT_TENSOR,
+            "buffer.input" | "buffer.output" | "buffer.identity" | "buffer.deep_copy" => &OUTPUT_BUFFER,
             _ => &OUTPUT_TEXT,
         }
     }
 
     fn is_source(&self) -> bool {
-        self.name == "core.input" || self.name == "tensor.input"
+        self.name == "core.input" || self.name == "tensor.input" || self.name == "buffer.input"
     }
 
     fn validate_config(&self, config: &JsonValue) -> Result<()> {
+        if self.name.starts_with("buffer.")
+            && !config.is_null()
+            && !matches!(config.as_object(), Some(object) if object.is_empty())
+        {
+            return Err(FlowError::InvalidGraph(
+                "buffer FlowUnits do not accept configuration".to_owned(),
+            ));
+        }
         if self.name == "text.prefix" && config.get("prefix").and_then(JsonValue::as_str).is_none()
         {
             return Err(FlowError::InvalidGraph(
@@ -158,6 +174,18 @@ impl FlowUnit for Builtin {
                     "core.output requires a text input at position 0".to_owned(),
                 )),
             },
+            "buffer.output" | "buffer.identity" => match inputs.as_slice() {
+                [Value::CpuBuffer(_)] => Ok(inputs),
+                _ => Err(FlowError::Execution(
+                    "CPU buffer FlowUnit requires cpu_buffer input".to_owned(),
+                )),
+            },
+            "buffer.deep_copy" => match inputs.as_slice() {
+                [Value::CpuBuffer(buffer)] => Ok(vec![Value::CpuBuffer(buffer.deep_copy())]),
+                _ => Err(FlowError::Execution(
+                    "buffer.deep_copy requires cpu_buffer input".to_owned(),
+                )),
+            },
             _ => self.process(&inputs, config),
         }
     }
@@ -173,7 +201,7 @@ impl FlowUnit for Builtin {
             }
         };
         let value = match self.name {
-            "core.input" | "tensor.input" => {
+            "core.input" | "tensor.input" | "buffer.input" => {
                 return Err(FlowError::Execution(
                     "core.input must be driven by Runtime".to_owned(),
                 ));
@@ -183,6 +211,22 @@ impl FlowUnit for Builtin {
                     Some(Value::TensorF32(tensor)) => Ok(vec![Value::TensorF32(tensor.clone())]),
                     _ => Err(FlowError::Execution(
                         "tensor.output expects tensor_f32".to_owned(),
+                    )),
+                };
+            }
+            "buffer.output" | "buffer.identity" => {
+                return match inputs {
+                    [Value::CpuBuffer(buffer)] => Ok(vec![Value::CpuBuffer(buffer.clone())]),
+                    _ => Err(FlowError::Execution(
+                        "CPU buffer FlowUnit requires cpu_buffer input".to_owned(),
+                    )),
+                };
+            }
+            "buffer.deep_copy" => {
+                return match inputs {
+                    [Value::CpuBuffer(buffer)] => Ok(vec![Value::CpuBuffer(buffer.deep_copy())]),
+                    _ => Err(FlowError::Execution(
+                        "buffer.deep_copy requires cpu_buffer input".to_owned(),
                     )),
                 };
             }
@@ -266,7 +310,7 @@ mod studio_catalog_tests {
     fn builtin_catalog_is_sorted_and_matches_registered_ports() {
         let registry = FlowRegistry::default();
         let list = registry.descriptors();
-        assert_eq!(list.len(), 7);
+        assert_eq!(list.len(), 11);
         assert!(list.windows(2).all(|pair| pair[0].name < pair[1].name));
         let prefix = list.iter().find(|d| d.name == "text.prefix").unwrap();
         assert_eq!(prefix.inputs[0].data_type, DataType::Text);
@@ -275,6 +319,12 @@ mod studio_catalog_tests {
         let tensor = list.iter().find(|d| d.name == "tensor.input").unwrap();
         assert!(tensor.is_source);
         assert_eq!(tensor.outputs[0].data_type, DataType::TensorF32);
+        let buffer = list.iter().find(|d| d.name == "buffer.input").unwrap();
+        assert!(buffer.is_source);
+        assert_eq!(buffer.outputs[0].data_type, DataType::CpuBuffer);
+        let copy = list.iter().find(|d| d.name == "buffer.deep_copy").unwrap();
+        assert_eq!(copy.inputs[0].data_type, DataType::CpuBuffer);
+        assert!(!copy.is_source);
         let encoded = serde_json::to_value(&list).unwrap();
         assert_eq!(
             encoded
