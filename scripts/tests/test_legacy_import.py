@@ -74,5 +74,45 @@ class LegacyImportTests(unittest.TestCase):
             legacy.convert_legacy(text, "graph.toml")
 
 
+    def test_preflight_collects_multiple_blockers_and_redacts_config_values(self):
+        dot = """digraph demo {
+          src[type=input]
+          x[type=flowunit,flowunit=legacy_resize,device=cuda,secret="supersecret"]
+          y[type=flowunit,flowunit=legacy_detector,device=ascend,token="hidden-token"]
+          sink[type=output]
+          src -> x:in
+          x:out -> y:in
+          y:out -> sink
+        }"""
+        report = legacy.analyze_legacy(dot, "legacy.dot")
+        self.assertEqual(report["node_count"], 4)
+        self.assertEqual(report["edge_count"], 3)
+        self.assertFalse(report["candidate_convertible"])
+        self.assertTrue(report["inspection_only"])
+        self.assertEqual(
+            {x["node_id"] for x in report["issues"] if x["code"] == "unmapped_flowunit"},
+            {"x", "y"},
+        )
+        self.assertEqual(
+            {x["node_id"] for x in report["issues"] if x["code"] == "device"},
+            {"x", "y"},
+        )
+        self.assertNotIn("supersecret", str(report))
+        self.assertNotIn("hidden-token", str(report))
+
+    def test_preflight_marks_compatible_syntax_as_candidate_only(self):
+        fixture = ROOT / "examples" / "legacy_modelbox_hello.toml"
+        report = legacy.analyze_legacy(fixture.read_text(), fixture.name)
+        self.assertTrue(report["candidate_convertible"])
+        self.assertTrue(report["requires_runtime_validation"])
+        self.assertEqual(report["issues"], [])
+
+    def test_preflight_reports_custom_driver_without_exposing_path(self):
+        toml = '[driver]\ndir="/secret/private/plugin"\n[graph]\nformat="graphviz"\ngraphconf="digraph demo {}"'
+        report = legacy.analyze_legacy(toml, "legacy.toml")
+        self.assertIn("custom_driver", {issue["code"] for issue in report["issues"]})
+        self.assertNotIn("/secret/private/plugin", str(report))
+
+
 if __name__ == "__main__":
     unittest.main()

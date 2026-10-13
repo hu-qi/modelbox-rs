@@ -29,3 +29,7 @@
 .edge-entry strong,.edge-event strong{font-size:11px;overflow-wrap:anywhere}
 .edge-entry small,.edge-event small{font-size:10px;line-height:1.5;color:#bbd4e1;overflow-wrap:anywhere}
 .edge-event{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid #405467;padding:7px 3px}
+
+.legacy-report{margin-top:8px;padding:9px;border:1px solid #8a6e3a;border-radius:6px}
+.legacy-report p{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.legacy-report strong{font-weight:600}

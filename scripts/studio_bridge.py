@@ -9,7 +9,7 @@ import tempfile
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from legacy_import import LegacyImportError, convert_legacy
+from legacy_import import LegacyImportError, analyze_legacy, convert_legacy
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HOST, PORT = "127.0.0.1", 8765
@@ -28,6 +28,16 @@ def invoke(action, payload):
     started = time.perf_counter()
     if action == "catalog":
         result = cargo("catalog", "--json")
+    elif action == "analyze-legacy":
+        filename = payload.get("filename")
+        legacy_text = payload.get("legacy_text")
+        if not isinstance(filename, str) or not isinstance(legacy_text, str):
+            return 400, {"error": "filename and legacy_text must be strings"}
+        try:
+            report = analyze_legacy(legacy_text, filename)
+        except LegacyImportError as error:
+            return 422, {"error": str(error)}
+        return 200, {"report": report}
     elif action == "import-legacy":
         filename = payload.get("filename")
         legacy_text = payload.get("legacy_text")
@@ -36,7 +46,12 @@ def invoke(action, payload):
         try:
             graph, report = convert_legacy(legacy_text, filename)
         except LegacyImportError as error:
-            return 422, {"error": str(error)}
+            detail = {"error": str(error)}
+            try:
+                detail["report"] = analyze_legacy(legacy_text, filename)
+            except LegacyImportError:
+                pass
+            return 422, detail
         # Parsing alone is NOT enough. Rust Runtime is the source of truth for
         # topology, types, required config and all port definitions.
         with tempfile.TemporaryDirectory(prefix="modelbox-legacy-") as temp:
@@ -143,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges", "/api/import-legacy") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges", "/api/import-legacy", "/api/analyze-legacy") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
