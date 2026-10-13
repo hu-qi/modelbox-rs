@@ -34,6 +34,7 @@ fn usage() -> &'static str {
   modelbox catalog --json
   modelbox validate <graph.json>
   modelbox run <graph.json> <TEXT>
+  modelbox run-value <graph.json> <typed-value.json>
   modelbox run-profile <graph.json> <TEXT>
   modelbox run-trace <graph.json> <TEXT>
   modelbox run-transport <graph.json> <TEXT>
@@ -166,6 +167,28 @@ fn execute() -> Result<(), FlowError> {
                 plan.edge_count(),
                 plan.terminal_names()
             );
+        }
+        "run-value" => {
+            let graph_path = args
+                .next()
+                .ok_or_else(|| FlowError::Execution(usage().to_owned()))?;
+            let value_path = args
+                .next()
+                .ok_or_else(|| FlowError::Execution(usage().to_owned()))?;
+            if args.next().is_some() {
+                return Err(FlowError::Execution(usage().to_owned()));
+            }
+            let graph = read_graph(&graph_path)?;
+            // Value::CpuBuffer validates its size and typed metadata on decode.
+            // Cap serialized JSON too, before attempting to allocate a huge file.
+            if fs::metadata(&value_path)?.len() > 64 * 1024 * 1024 {
+                return Err(FlowError::Execution(
+                    "typed value JSON exceeds 64 MiB".to_owned(),
+                ));
+            }
+            let value: Value = serde_json::from_str(&fs::read_to_string(&value_path)?)?;
+            let result = runtime.run(&graph, value)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
         "run" | "run-batch" | "run-profile" | "run-trace" | "run-transport" | "run-edges" => {
             let path = args
