@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::CpuBuffer;
+
 /// Edge port types are checked before workers are launched.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -8,6 +10,7 @@ pub enum DataType {
     Integer,
     Boolean,
     Bytes,
+    CpuBuffer,
     TensorF32,
 }
 
@@ -20,6 +23,7 @@ pub enum Value {
     Integer(i64),
     Boolean(bool),
     Bytes(Vec<u8>),
+    CpuBuffer(CpuBuffer),
     TensorF32(TensorF32),
 }
 
@@ -30,6 +34,7 @@ impl Value {
             Self::Integer(_) => DataType::Integer,
             Self::Boolean(_) => DataType::Boolean,
             Self::Bytes(_) => DataType::Bytes,
+            Self::CpuBuffer(_) => DataType::CpuBuffer,
             Self::TensorF32(_) => DataType::TensorF32,
         }
     }
