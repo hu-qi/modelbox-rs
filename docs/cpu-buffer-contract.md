@@ -32,3 +32,18 @@ The typed input file contains byte values 0, 1, 127, 128 and 255, plus metadata 
 ## Not yet implemented
 
 BufferList batch semantics; DataContext/SessionContext; Open/StreamOpen/StreamClose/Close; per-stream EOF callbacks; writable/borrowed/foreign memory; GPU/NPU buffers; original C++ ABI and driver loading; legacy plugin functional equivalence; production release benchmarking. None is implied by these types or passing tests.
+
+## Studio typed Value mode
+
+The optional Studio runner now accepts tagged `Value` JSON and executes it
+through the local-only Python bridge and the Rust `run-value` CLI. The
+bridge uses temporary files and fixed command arguments; it never launches a
+legacy ModelBox driver or evaluates JavaScript as binary code. Typed input is
+limited to 192 KiB of serialized JSON in Studio (smaller than the 16 MiB core
+buffer limit). The original text runner and profilers are unaffected; current
+profilers are disabled in Studio when using typed input.
+
+A real Chromium E2E test imports the example CPU Buffer graph, passes typed
+binary data (including 255 and zero) and typed metadata, verifies both
+terminal outputs, and confirms invalid byte values fail through the Rust
+decoder rather than being silently converted.

@@ -192,3 +192,31 @@ class StudioBridgeTests(TestCase):
         self.assertEqual(body["report"]["node_count"], 3)
         self.assertGreaterEqual(len(body["report"]["issues"]), 2)
         mocked.assert_not_called()
+
+    def test_typed_buffer_run_passes_file_only_to_fixed_rust_cli(self):
+        graph = {"name": "cpu_buffer_fanout", "nodes": [], "edges": []}
+        typed = {"type": "cpu_buffer", "value": {
+            "data": [0, 128, 255], "metadata": {"width": 3, "ready": True}
+        }}
+        response = {"outputs": {"left.out": [typed]}, "input_count": 1}
+        def verify(*args):
+            self.assertEqual(args[0], "run-value")
+            self.assertEqual(json.loads(Path(args[1]).read_text()), graph)
+            self.assertEqual(json.loads(Path(args[2]).read_text()), typed)
+            return SimpleNamespace(returncode=0, stdout=json.dumps(response), stderr="")
+        with patch.object(bridge, "cargo", side_effect=verify) as mocked:
+            status, body = bridge.invoke("run-value", {"graph": graph, "typed_value": typed})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["result"]["outputs"]["left.out"][0]["value"]["data"], [0, 128, 255])
+        mocked.assert_called_once()
+
+    def test_typed_input_rejects_non_tagged_and_oversized_json_without_cli(self):
+        graph = {"name": "invalid", "nodes": [], "edges": []}
+        with patch.object(bridge, "cargo") as mocked:
+            status, _ = bridge.invoke("run-value", {"graph": graph, "typed_value": [1, 2, 3]})
+            self.assertEqual(status, 400)
+            status, _ = bridge.invoke("run-value", {"graph": graph, "typed_value": {
+                "type": "cpu_buffer", "value": {"data": [0] * 200000}
+            }})
+            self.assertEqual(status, 400)
+            mocked.assert_not_called()

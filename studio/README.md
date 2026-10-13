@@ -98,3 +98,22 @@ The collector is opt-in and unsuitable for uninstrumented Release baselines.
 ## ModelBox legacy DOT / TOML import (first subset)
 
 The **导入 JSON** picker also accepts `.dot`, `.toml`, and `.conf` files using the old ModelBox `[graph]` Graphviz syntax. This first step is intentionally **CPU text-only**, requires Python 3.11+, and accepts only the exact built-in Rust text FlowUnits. The local bridge calls **the real Rust `modelbox validate`** on the converted GraphSpec before updating Studio. Unsupported plugins/devices/options yield errors without changing the current canvas. See [legacy migration guide](../docs/legacy-migration.md).
+
+## Native CPU Buffer execution in Studio (typed Value mode)
+
+Import `examples/cpu_buffer_fanout.json`, choose **Typed Value JSON（CPU Buffer）**
+under **运行输入模式**, and paste the tagged JSON from
+`examples/cpu_buffer_value.json`. Click **执行 Graph**.
+
+The local bridge serializes the complete tagged Value to a temporary JSON
+file, invokes native Rust `modelbox run-value`, then displays the actual
+terminal Buffer bytes and typed metadata. Invalid bytes or metadata are
+rejected by the Rust serde/CpuBuffer validator, not inferred in JavaScript.
+The bridge accepts up to 192 KiB of serialized tagged Value JSON; the core
+itself caps each CPU Buffer at 16 MiB.
+
+Ordinary text input and its existing performance/trace/edge diagnosis buttons
+remain available when **文本** is selected. Those diagnosis commands do not
+yet support typed Buffer input and are disabled in typed mode; they must not
+be presented as compatible measurements. This is a native CPU-only example,
+not original ModelBox C++ BufferList/driver compatibility.
