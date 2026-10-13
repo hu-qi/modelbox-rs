@@ -3,6 +3,7 @@
 //! This CPU-first milestone deliberately does not claim binary compatibility with
 //! legacy ModelBox drivers or support for GPU/NPU execution.
 
+mod cpu_buffer;
 mod error;
 mod flow_unit;
 mod graph;
@@ -14,6 +15,7 @@ mod onnx_cpu;
 #[cfg(feature = "onnx")]
 pub use onnx_cpu::OnnxCpuFlowUnit;
 
+pub use cpu_buffer::{BufferMetaValue, CpuBuffer};
 pub use error::FlowError;
 pub use flow_unit::{FlowRegistry, FlowUnit, FlowUnitDescriptor, PortDef, PortDescriptor};
 pub use graph::{EdgeSpec, ExecutionPlan, GraphSpec, NodeSpec};
