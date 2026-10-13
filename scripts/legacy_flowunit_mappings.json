@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "scope": "modelbox-rs-local-cpu-text-fixtures-only",
+  "caveat": "These declarations are audited against Rust FlowRegistry ports and exercised by local sample graphs. They DO NOT claim semantic equivalence to independently installed legacy ModelBox plugins of the same name.",
+  "flowunits": [
+    {
+      "legacy_name": "text.uppercase",
+      "rust_name": "text.uppercase",
+      "device": "cpu",
+      "inputs": {
+        "in": "in"
+      },
+      "outputs": {
+        "out": "out"
+      },
+      "options": {},
+      "verification": "fixture-and-runtime-e2e"
+    },
+    {
+      "legacy_name": "text.prefix",
+      "rust_name": "text.prefix",
+      "device": "cpu",
+      "inputs": {
+        "in": "in"
+      },
+      "outputs": {
+        "out": "out"
+      },
+      "options": {
+        "prefix": {
+          "rust_key": "prefix",
+          "type": "string",
+          "required": true
+        }
+      },
+      "verification": "fixture-and-runtime-e2e"
+    },
+    {
+      "legacy_name": "text.concat",
+      "rust_name": "text.concat",
+      "device": "cpu",
+      "inputs": {
+        "left": "left",
+        "right": "right"
+      },
+      "outputs": {
+        "out": "out"
+      },
+      "options": {},
+      "verification": "local-regression"
+    }
+  ],
+  "known_unmapped": [
+    {
+      "legacy_name": "resize",
+      "reason": "Real legacy resize data and image buffer semantics are not implemented by Rust text FlowUnits.",
+      "source": "https://modelbox-ai.com/modelbox-book/use-modelbox/sdk-mode/c%2B%2B.html"
+    },
+    {
+      "legacy_name": "model_detect",
+      "reason": "Legacy model loading/device/runtime semantics are not mapped.",
+      "source": "https://modelbox-ai.com/modelbox-book/use-modelbox/sdk-mode/c%2B%2B.html"
+    },
+    {
+      "legacy_name": "yolobox_post",
+      "reason": "Legacy postprocessing buffers and port contracts are not verified.",
+      "source": "https://modelbox-ai.com/modelbox-book/use-modelbox/sdk-mode/c%2B%2B.html"
+    },
+    {
+      "legacy_name": "httpserver_sync_receive",
+      "reason": "Network source lifecycle and streaming semantics are not implemented.",
+      "source": "https://modelbox-ai.com/modelbox-book/plugins/modelbox-plugin.html"
+    },
+    {
+      "legacy_name": "httpserver_sync_reply",
+      "reason": "HTTP response lifecycle and streaming semantics are not implemented.",
+      "source": "https://modelbox-ai.com/modelbox-book/plugins/modelbox-plugin.html"
+    }
+  ]
+}
