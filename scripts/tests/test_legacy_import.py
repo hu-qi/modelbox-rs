@@ -1,9 +1,13 @@
 """Compatibility subset tests: fixtures use legacy ModelBox TOML/Graphviz syntax."""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from legacy_mappings import MAPPINGS, audit_against_catalog
+
 spec = importlib.util.spec_from_file_location("modelbox_legacy_import", ROOT / "scripts" / "legacy_import.py")
 legacy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(legacy)
@@ -112,6 +116,68 @@ class LegacyImportTests(unittest.TestCase):
         report = legacy.analyze_legacy(toml, "legacy.toml")
         self.assertIn("custom_driver", {issue["code"] for issue in report["issues"]})
         self.assertNotIn("/secret/private/plugin", str(report))
+
+
+    def test_reviewed_mapping_contract_ports_and_options_drive_conversion(self):
+        self.assertEqual(
+            {name: entry["rust_name"] for name, entry in MAPPINGS.items()},
+            {
+                "text.uppercase": "text.uppercase",
+                "text.prefix": "text.prefix",
+                "text.concat": "text.concat",
+            },
+        )
+        self.assertEqual(MAPPINGS["text.concat"]["inputs"], {"left": "left", "right": "right"})
+        self.assertEqual(MAPPINGS["text.prefix"]["options"]["prefix"]["rust_key"], "prefix")
+        self.assertTrue(MAPPINGS["text.prefix"]["options"]["prefix"]["required"])
+
+    def test_flowunit_concat_uses_explicit_mapping_and_preserves_fanin(self):
+        dot = """digraph concat {
+          source[type=input]
+          left[type=flowunit,flowunit=text.uppercase]
+          right[type=flowunit,flowunit=text.prefix,prefix="R: "]
+          join[type=flowunit,flowunit=text.concat]
+          result[type=output]
+          source -> left:in
+          source -> right:in
+          left:out -> join:left
+          right:out -> join:right
+          join:out -> result
+        }"""
+        graph, report = legacy.convert_legacy(dot, "concat.dot")
+        self.assertEqual(len(graph["edges"]), 5)
+        self.assertIn({"from": "left.out", "to": "join.left"}, graph["edges"])
+        self.assertIn({"from": "right.out", "to": "join.right"}, graph["edges"])
+        self.assertEqual(report["mapping_schema_version"], 1)
+
+    def test_actual_legacy_modelbox_units_remain_unmapped_without_semantic_evidence(self):
+        for name in ("resize", "model_detect", "yolobox_post", "httpserver_sync_receive"):
+            with self.subTest(name=name):
+                dot = f"digraph sourcegraph {{ a[type=input]; b[type=flowunit,flowunit={name},device=cpu]; z[type=output]; a -> b:in; b:out -> z; }}"
+                with self.assertRaisesRegex(legacy.LegacyImportError, "unsupported legacy FlowUnit"):
+                    legacy.convert_legacy(dot, "modelbox.dot")
+
+    def test_catalog_audit_rejects_ports_and_required_options_mismatches(self):
+        catalog = [
+            {"name": "text.uppercase", "is_source": False,
+             "inputs": [{"name": "in", "data_type": "text"}],
+             "outputs": [{"name": "out", "data_type": "text"}],
+             "required_string_config_keys": []},
+            {"name": "text.prefix", "is_source": False,
+             "inputs": [{"name": "in", "data_type": "text"}],
+             "outputs": [{"name": "out", "data_type": "text"}],
+             "required_string_config_keys": ["prefix"]},
+            {"name": "text.concat", "is_source": False,
+             "inputs": [{"name": "left", "data_type": "text"}, {"name": "right", "data_type": "text"}],
+             "outputs": [{"name": "out", "data_type": "text"}],
+             "required_string_config_keys": []},
+        ]
+        self.assertEqual(audit_against_catalog(catalog), [])
+        catalog[0]["outputs"][0]["name"] = "new_out"
+        catalog[1]["required_string_config_keys"] = []
+        failures = audit_against_catalog(catalog)
+        self.assertTrue(any("outputs ports mismatch" in msg for msg in failures))
+        self.assertTrue(any("required string configuration differs" in msg for msg in failures))
 
 
 if __name__ == "__main__":

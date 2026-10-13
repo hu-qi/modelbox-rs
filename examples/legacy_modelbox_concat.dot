@@ -1,0 +1,13 @@
+digraph concat_legacy {
+  input1[type=input]
+  left[type=flowunit, flowunit=text.uppercase, device=cpu]
+  right[type=flowunit, flowunit=text.prefix, device=cpu, prefix="R: "]
+  join[type=flowunit, flowunit=text.concat, device=cpu]
+  output1[type=output]
+
+  input1 -> left:in
+  input1 -> right:in
+  left:out -> join:left
+  right:out -> join:right
+  join:out -> output1
+}
