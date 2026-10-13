@@ -161,3 +161,13 @@ test('late Registry response must not overwrite an import error', async ({ page 
   await expect(page.getByRole('status')).toContainText('unsupported legacy FlowUnit');
   await expect(page.getByLabel('旧版迁移兼容性分析')).toContainText('unmapped_flowunit');
 });
+
+test('reviewed concat port mapping executes real Rust fan-in after DOT import', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.locator('input[type=file]').setInputFiles('../examples/legacy_modelbox_concat.dot');
+  await expect(page.getByRole('status')).toContainText('Rust 校验通过');
+  await expect(page.locator('.react-flow__node')).toHaveCount(5);
+  await page.getByRole('button',{name:'执行 Graph'}).click();
+  await expect(page.getByText('HELLO MODELBOXR: hello modelbox',{exact:false})).toBeVisible();
+});
