@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 test('real Rust hello graph validates, edits, executes, and reloads', async ({ page }) => {
   await page.goto('/');
@@ -170,4 +171,40 @@ test('reviewed concat port mapping executes real Rust fan-in after DOT import', 
   await expect(page.locator('.react-flow__node')).toHaveCount(5);
   await page.getByRole('button',{name:'执行 Graph'}).click();
   await expect(page.getByText('HELLO MODELBOXR: hello modelbox',{exact:false})).toBeVisible();
+});
+
+test('Studio runs typed CPU Buffer JSON against real Rust Runtime', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.locator('input[type=file]').setInputFiles('../examples/cpu_buffer_fanout.json');
+  await expect(page.getByRole('status')).toContainText('已导入');
+  await expect(page.locator('.react-flow__node')).toHaveCount(5);
+  await page.getByRole('combobox',{name:'运行输入模式'}).selectOption('typed');
+  await page.getByRole('textbox',{name:'Typed Value JSON'}).fill(
+    readFileSync('../examples/cpu_buffer_value.json','utf8')
+  );
+  await expect(page.getByRole('button',{name:'分析节点耗时'})).toBeDisabled();
+  await page.getByRole('button',{name:'执行 Graph'}).click();
+  await expect(page.getByRole('status')).toContainText('执行成功');
+  const report=page.getByLabel('Runtime 诊断');
+  await expect(report).toContainText('left.out');
+  await expect(report).toContainText('right.out');
+  await expect(report).toContainText('"cpu_buffer"');
+  await expect(report).toContainText('255');
+  await expect(report).toContainText('"grayscale"');
+  await expect(report).toContainText('"width": 5');
+});
+
+test('invalid typed buffer bytes fail through authoritative Rust decoder', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('status')).toContainText('Registry 已连接');
+  await page.locator('input[type=file]').setInputFiles('../examples/cpu_buffer_fanout.json');
+  await expect(page.getByRole('status')).toContainText('已导入');
+  await page.getByRole('combobox',{name:'运行输入模式'}).selectOption('typed');
+  await page.getByRole('textbox',{name:'Typed Value JSON'}).fill(
+    '{"type":"cpu_buffer","value":{"data":[256],"metadata":{}}}'
+  );
+  await page.getByRole('button',{name:'执行 Graph'}).click();
+  await expect(page.getByRole('status')).toContainText('执行/校验失败');
+  await expect(page.getByRole('alert')).toContainText('modelbox');
 });
