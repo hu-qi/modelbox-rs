@@ -7,6 +7,8 @@ import json
 import re
 import tomllib
 
+from legacy_mappings import MAPPINGS, KNOWN_UNMAPPED
+
 
 class LegacyImportError(ValueError):
     pass
@@ -22,9 +24,8 @@ ATTRIBUTE = re.compile(r"^([A-Za-z_][\w-]*)\s*=\s*(.+)$", re.S)
 # Explicit migration allowlist. New native FlowUnits must be reviewed before
 # being added; legacy CPU plugin ABI is not compatible with Rust FlowUnit.
 UNITS = {
-    "text.uppercase": (("in",), ("out",), ()),
-    "text.prefix": (("in",), ("out",), ("prefix",)),
-    "text.concat": (("left", "right"), ("out",), ()),
+    name: (tuple(entry["inputs"]), tuple(entry["outputs"]), tuple(entry["options"]))
+    for name, entry in MAPPINGS.items()
 }
 
 
@@ -130,6 +131,7 @@ def convert_legacy(text, filename):
     name, body = match.groups()
     records = _split(body, ";\n\r")
     nodes = {}
+    node_contracts = {}
     edges = []
     for statement in records:
         if "->" in statement:
@@ -155,24 +157,30 @@ def convert_legacy(text, filename):
                 raise LegacyImportError(f"unsupported output settings at {node_id}: {sorted(attrs)}")
             unit, config = "core.output", {}
         elif kind == "flowunit":
-            unit = attrs.pop("flowunit", None)
-            if unit not in UNITS:
+            legacy_unit = attrs.pop("flowunit", None)
+            mapping = MAPPINGS.get(legacy_unit)
+            if mapping is None:
+                hint = KNOWN_UNMAPPED.get(legacy_unit)
+                reason = "known legacy operator needs a separate Rust implementation" if hint else "no reviewed Rust mapping"
                 raise LegacyImportError(
-                    f"unsupported legacy FlowUnit {unit!r} at {node_id}; "
-                    "only CPU text.uppercase, text.prefix and text.concat can be migrated"
+                    f"unsupported legacy FlowUnit {legacy_unit!r} at {node_id}: {reason}"
                 )
-            if attrs.pop("device", "cpu") != "cpu":
+            if attrs.pop("device", "cpu") != mapping["device"]:
                 raise LegacyImportError(f"non-CPU device at node {node_id} is unsupported")
             if attrs.pop("deviceid", "0") != "0":
                 raise LegacyImportError(f"nonzero deviceid at {node_id} is unsupported")
-            allowed = set(UNITS[unit][2])
+            options = mapping["options"]
+            allowed = set(options)
             if set(attrs) - allowed:
                 raise LegacyImportError(
                     f"unsupported FlowUnit options at {node_id}: {sorted(set(attrs) - allowed)}"
                 )
-            if allowed - set(attrs):
-                raise LegacyImportError(f"missing required options at {node_id}: {sorted(allowed - set(attrs))}")
-            config = attrs
+            required = {key for key, value in options.items() if value["required"]}
+            if required - set(attrs):
+                raise LegacyImportError(f"missing required options at {node_id}: {sorted(required - set(attrs))}")
+            config = {spec["rust_key"]: attrs[key] for key, spec in options.items() if key in attrs}
+            unit = mapping["rust_name"]
+            node_contracts[node_id] = mapping
         else:
             raise LegacyImportError(f"unsupported or missing node type at {node_id}: {kind!r}")
         nodes[node_id] = {"id": node_id, "unit": unit, **({"config": config} if config else {})}
@@ -185,8 +193,10 @@ def convert_legacy(text, filename):
         source_unit, dest_unit = nodes[from_id]["unit"], nodes[to_id]["unit"]
         if source_unit == "core.output" or dest_unit == "core.input":
             raise LegacyImportError(f"reversed input/output direction: {from_id} -> {to_id}")
-        source_ports = ("out",) if source_unit == "core.input" else UNITS[source_unit][1]
-        target_ports = ("in",) if dest_unit == "core.output" else UNITS[dest_unit][0]
+        source_map = {"out": "out"} if source_unit == "core.input" else node_contracts[from_id]["outputs"]
+        target_map = {"in": "in"} if dest_unit == "core.output" else node_contracts[to_id]["inputs"]
+        source_ports = tuple(source_map)
+        target_ports = tuple(target_map)
         if from_port is None:
             if len(source_ports) != 1:
                 raise LegacyImportError(f"explicit source port required at {from_id}")
@@ -199,7 +209,10 @@ def convert_legacy(text, filename):
             raise LegacyImportError(
                 f"unsupported edge ports {from_id}:{from_port} -> {to_id}:{to_port}"
             )
-        compiled_edges.append({"from": f"{from_id}.{from_port}", "to": f"{to_id}.{to_port}"})
+        compiled_edges.append({
+            "from": f"{from_id}.{source_map[from_port]}",
+            "to": f"{to_id}.{target_map[to_port]}",
+        })
     graph = {
         "name": name,
         "queue_capacity": 16,
@@ -209,6 +222,8 @@ def convert_legacy(text, filename):
     return graph, {
         "source_format": "modelbox-graphviz",
         "migration_scope": "cpu-text-subset",
+        "mapping_schema_version": 1,
+        "mapped_flowunits": sorted({node["unit"] for node in nodes.values() if node["unit"] not in ("core.input", "core.output")}),
         "node_count": len(nodes),
         "edge_count": len(compiled_edges),
         "requires_runtime_validation": True,
@@ -307,7 +322,11 @@ def analyze_legacy(text, filename):
                     "core.input" if kind == "input" else "core.output" if kind == "output" else None
                 )
                 device = attrs.get("device", "cpu")
-                nodes.append({"id": node_id, "type": kind, "flowunit": unit, "device": device})
+                nodes.append({
+                    "id": node_id, "type": kind, "flowunit": unit, "device": device,
+                    "mapping_status": "reviewed_fixture_subset" if unit in MAPPINGS else "requires_rust_implementation",
+                    "rust_unit": MAPPINGS[unit]["rust_name"] if unit in MAPPINGS else None,
+                })
                 if kind not in ("input", "output", "flowunit"):
                     issue("node_type", "unsupported node type", node_id)
                 elif kind == "flowunit":
