@@ -68,7 +68,7 @@ def invoke(action, payload):
                 "scope": "legacy_import_and_runtime_validation",
             },
         }
-    elif action in ("validate", "run", "run-profile", "run-trace", "run-transport", "run-edges"):
+    elif action in ("validate", "run", "run-profile", "run-trace", "run-transport", "run-edges", "run-value"):
         graph = payload.get("graph")
         if not isinstance(graph, dict):
             return 400, {"error": "graph must be an object"}
@@ -76,7 +76,17 @@ def invoke(action, payload):
         with tempfile.TemporaryDirectory(prefix="modelbox-studio-") as temp:
             path = pathlib.Path(temp) / "graph.json"
             path.write_text(json.dumps(graph), encoding="utf-8")
-            if action in ("run", "run-profile", "run-trace", "run-transport", "run-edges"):
+            if action == "run-value":
+                value = payload.get("typed_value")
+                if not isinstance(value, dict) or not isinstance(value.get("type"), str) or "value" not in value:
+                    return 400, {"error": "typed_value must be a tagged Rust Value object"}
+                encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                if len(encoded) > 192 * 1024:
+                    return 400, {"error": "typed_value JSON exceeds 192 KiB Studio bridge limit"}
+                typed_path = pathlib.Path(temp) / "value.json"
+                typed_path.write_bytes(encoded)
+                result = cargo("run-value", str(path), str(typed_path))
+            elif action in ("run", "run-profile", "run-trace", "run-transport", "run-edges"):
                 value = payload.get("input")
                 if not isinstance(value, str) or len(value) > 4096:
                     return 400, {"error": "input must be a text string of at most 4096 characters"}
@@ -103,7 +113,7 @@ def invoke(action, payload):
         return 422, detail
     if action == "catalog":
         return 200, json.loads(result.stdout)
-    if action in ("run", "run-profile", "run-trace", "run-transport", "run-edges"):
+    if action in ("run", "run-profile", "run-trace", "run-transport", "run-edges", "run-value"):
         output = json.loads(result.stdout)
         if action == "run-profile":
             return 200, {"result": output["result"], "node_process": output["node_process"], "diagnostics": diagnostics}
@@ -158,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(code, body)
 
     def do_POST(self):
-        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges", "/api/import-legacy", "/api/analyze-legacy") or not self.origin_allowed():
+        if self.path not in ("/api/validate", "/api/run", "/api/run-profile", "/api/run-trace", "/api/run-transport", "/api/run-edges", "/api/run-value", "/api/import-legacy", "/api/analyze-legacy") or not self.origin_allowed():
             self.reply(403, {"error": "forbidden"})
             return
         # Localhost is still vulnerable to cross-site requests: require JSON and Origin.
