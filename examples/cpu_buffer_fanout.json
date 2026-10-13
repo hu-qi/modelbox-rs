@@ -1,0 +1,44 @@
+{
+  "name": "cpu_buffer_fanout",
+  "queue_capacity": 2,
+  "nodes": [
+    {
+      "id": "source",
+      "unit": "buffer.input"
+    },
+    {
+      "id": "identity",
+      "unit": "buffer.identity"
+    },
+    {
+      "id": "copy",
+      "unit": "buffer.deep_copy"
+    },
+    {
+      "id": "left",
+      "unit": "buffer.output"
+    },
+    {
+      "id": "right",
+      "unit": "buffer.output"
+    }
+  ],
+  "edges": [
+    {
+      "from": "source.out",
+      "to": "identity.in"
+    },
+    {
+      "from": "source.out",
+      "to": "copy.in"
+    },
+    {
+      "from": "identity.out",
+      "to": "left.in"
+    },
+    {
+      "from": "copy.out",
+      "to": "right.in"
+    }
+  ]
+}
