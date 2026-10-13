@@ -80,6 +80,8 @@ jobs:
         run: cargo run -p modelbox-cli -- run-transport examples/hello.json transport-contract
       - name: Bounded edge delivery CLI smoke
         run: cargo run -p modelbox-cli -- run-edges examples/hello.json edge-contract
+      - name: CPU Buffer metadata and owned byte payload smoke
+        run: cargo run -p modelbox-cli -- run-value examples/cpu_buffer_fanout.json examples/cpu_buffer_value.json
       - name: Studio FlowUnit catalog smoke
         run: cargo run -p modelbox-cli -- catalog --json
       - name: Studio GraphSpec contract smoke
