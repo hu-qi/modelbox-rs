@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use modelbox_core::{BufferMetaValue, CpuBuffer, DataType, GraphSpec, Runtime, Value};
+use modelbox_core::{BufferMetaValue, CpuBuffer, DataType, FlowRegistry, GraphSpec, Runtime, Value};
 
 const GRAPH: &str = include_str!("../../../examples/cpu_buffer_fanout.json");
 const INPUT: &str = include_str!("../../../examples/cpu_buffer_value.json");
@@ -24,8 +24,8 @@ fn typed_cpu_buffer_graph_preserves_binary_and_metadata_through_both_branches() 
     assert_eq!(buffer.metadata()["width"], BufferMetaValue::Integer(5));
     let outputs = Runtime::default().run(&graph(), value.clone()).unwrap();
     assert_eq!(outputs.input_count, 1);
-    assert_eq!(outputs.outputs["left.out"], [value.clone()]);
-    assert_eq!(outputs.outputs["right.out"], [value]);
+    assert_eq!(outputs.outputs["left.out"], vec![value.clone()]);
+    assert_eq!(outputs.outputs["right.out"], vec![value]);
     let left = match &outputs.outputs["left.out"][0] {
         Value::CpuBuffer(buffer) => buffer,
         _ => panic!("expected CPU buffer"),
@@ -41,13 +41,13 @@ fn typed_cpu_buffer_graph_preserves_binary_and_metadata_through_both_branches() 
 
 #[test]
 fn identity_shares_storage_but_deep_copy_detaches_it() {
-    let registry = Runtime::default();
+    let registry = FlowRegistry::default();
     let original = match input() {
         Value::CpuBuffer(buffer) => buffer,
         _ => panic!("expected CPU buffer"),
     };
-    let passthrough = registry.registry().get("buffer.identity").unwrap();
-    let copied = registry.registry().get("buffer.deep_copy").unwrap();
+    let passthrough = registry.get("buffer.identity").unwrap();
+    let copied = registry.get("buffer.deep_copy").unwrap();
     let output = passthrough
         .process_owned(vec![Value::CpuBuffer(original.clone())], &serde_json::Value::Null)
         .unwrap();
@@ -63,7 +63,7 @@ fn identity_shares_storage_but_deep_copy_detaches_it() {
         Value::CpuBuffer(buffer) => buffer,
         _ => panic!("expected CPU buffer"),
     };
-    assert_eq!(original, *detached);
+    assert_eq!(&original, detached);
     assert!(!original.shares_storage_with(detached));
 }
 
