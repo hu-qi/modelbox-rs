@@ -133,7 +133,9 @@ impl FlowUnit for Builtin {
     fn outputs(&self) -> &'static [PortDef] {
         match self.name {
             "tensor.input" | "tensor.output" => &OUTPUT_TENSOR,
-            "buffer.input" | "buffer.output" | "buffer.identity" | "buffer.deep_copy" => &OUTPUT_BUFFER,
+            "buffer.input" | "buffer.output" | "buffer.identity" | "buffer.deep_copy" => {
+                &OUTPUT_BUFFER
+            }
             _ => &OUTPUT_TEXT,
         }
     }
