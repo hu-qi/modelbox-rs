@@ -119,3 +119,34 @@ performance equivalence. Import still additionally requires native
 Official legacy graph examples and their non-Rust CPU/CUDA contracts:
 [ModelBox SDK graph configuration](https://modelbox-ai.com/modelbox-book/use-modelbox/sdk-mode/c%2B%2B.html);
 [ModelBox HTTP FlowUnit example](https://modelbox-ai.com/modelbox-book/plugins/modelbox-plugin.html).
+
+## Batch migration inventory for real projects
+
+To inventory a **directory of legacy graphs** without importing or running any
+of them, use the Python 3.11+ read-only tool:
+
+```bash
+python3 scripts/legacy_audit.py /path/to/my-modelbox-graphs
+python3 scripts/legacy_audit.py /path/to/graph1.toml /path/to/graph2.dot --json
+python3 scripts/legacy_audit.py /path/to/my-modelbox-graphs --fail-on-blockers
+```
+
+It recursively discovers `.dot`, `.toml`, and `.conf` files, reports which
+files are **syntax-compatible candidates** and which are blocked, and
+aggregates blocker counts, unmapped legacy FlowUnit names, known fixture-scoped
+mappings, and device requirements. It includes per-file issue codes so
+engineering work can be prioritized. A `candidate_convertible` flag still
+**does not imply successful Rust validation or semantic equivalence**.
+
+The default output is concise human-readable text; `--json` emits
+machine-readable structured results. `--fail-on-blockers` exits 2 if any
+graph is blocked (otherwise 0); invalid arguments exit 1. There is a maximum
+of **512** input files and **128 KiB** per file. Symlinks are skipped;
+unsupported/invalid UTF-8 files are reported as blocked without printing
+their contents. No drivers, plugins or arbitrary commands are executed.
+Configuration values and driver paths are deliberately omitted from the
+report. The scanner does not modify any source files.
+
+Run this against the directory containing your actual ModelBox graph
+configurations, **not** an arbitrary monorepo root where unrelated Cargo/
+tooling TOML files may be misclassified as legacy graph candidates.
