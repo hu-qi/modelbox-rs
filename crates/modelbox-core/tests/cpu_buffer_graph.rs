@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use modelbox_core::{BufferMetaValue, CpuBuffer, DataType, FlowRegistry, GraphSpec, Runtime, Value};
+use modelbox_core::{
+    BufferMetaValue, CpuBuffer, DataType, FlowRegistry, GraphSpec, Runtime, Value,
+};
 
 const GRAPH: &str = include_str!("../../../examples/cpu_buffer_fanout.json");
 const INPUT: &str = include_str!("../../../examples/cpu_buffer_value.json");
@@ -49,7 +51,10 @@ fn identity_shares_storage_but_deep_copy_detaches_it() {
     let passthrough = registry.get("buffer.identity").unwrap();
     let copied = registry.get("buffer.deep_copy").unwrap();
     let output = passthrough
-        .process_owned(vec![Value::CpuBuffer(original.clone())], &serde_json::Value::Null)
+        .process_owned(
+            vec![Value::CpuBuffer(original.clone())],
+            &serde_json::Value::Null,
+        )
         .unwrap();
     let identity = match &output[0] {
         Value::CpuBuffer(buffer) => buffer,
@@ -57,7 +62,10 @@ fn identity_shares_storage_but_deep_copy_detaches_it() {
     };
     assert!(original.shares_storage_with(identity));
     let output = copied
-        .process_owned(vec![Value::CpuBuffer(original.clone())], &serde_json::Value::Null)
+        .process_owned(
+            vec![Value::CpuBuffer(original.clone())],
+            &serde_json::Value::Null,
+        )
         .unwrap();
     let detached = match &output[0] {
         Value::CpuBuffer(buffer) => buffer,
@@ -78,7 +86,9 @@ fn buffer_many_frames_bounded_fanout_preserves_sequence_and_contents() {
         let buffer = CpuBuffer::new(vec![0, index as u8, 255], metadata).unwrap();
         inputs.push(Value::CpuBuffer(buffer));
     }
-    let output = Runtime::default().run_many(&graph(), inputs.clone()).unwrap();
+    let output = Runtime::default()
+        .run_many(&graph(), inputs.clone())
+        .unwrap();
     assert_eq!(output.input_count, 256);
     assert_eq!(output.outputs["left.out"], inputs);
     assert_eq!(output.outputs["right.out"], inputs);
