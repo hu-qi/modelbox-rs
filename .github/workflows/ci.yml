@@ -34,6 +34,8 @@ jobs:
           python-version: '3.11'
       - name: Local bridge and legacy importer contract tests
         run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+      - name: Legacy project batch preflight smoke
+        run: python3 scripts/legacy_audit.py examples/legacy_modelbox_hello.dot examples/legacy_modelbox_concat.dot --fail-on-blockers
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build real Rust CLI for browser E2E
