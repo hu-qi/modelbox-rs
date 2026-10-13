@@ -1,0 +1,18 @@
+{
+  "type": "cpu_buffer",
+  "value": {
+    "data": [
+      0,
+      1,
+      127,
+      128,
+      255
+    ],
+    "metadata": {
+      "width": 5,
+      "height": 1,
+      "format": "grayscale",
+      "ready": true
+    }
+  }
+}
