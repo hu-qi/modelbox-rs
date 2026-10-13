@@ -27,7 +27,9 @@ def _discover(paths):
         if root.is_file():
             if root.suffix.lower() not in EXTENSIONS:
                 raise ValueError(f"unsupported file extension: {root.name}")
-            discovered[str(root.resolve())] = (root, root.name)
+            discovered.setdefault(str(root.resolve()), (root, root.name))
+            if len(discovered) > MAX_FILES:
+                raise ValueError(f"too many legacy files (maximum {MAX_FILES})")
             continue
         if not root.is_dir():
             raise ValueError(f"input does not exist or is not a file/directory: {root.name}")
