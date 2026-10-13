@@ -79,3 +79,43 @@ together. Preflight omits arbitrary attribute values and configured driver
 paths so credentials or URLs are not echoed in the UI. Unsupported Graphviz
 constructs still receive a generic, explicit unsupported-syntax diagnostic;
 the analyzer is deliberately not a complete Graphviz parser.
+
+## Explicit reviewed FlowUnit mapping contract
+
+The conversion allowlist is now maintained in
+[`scripts/legacy_flowunit_mappings.json`](../scripts/legacy_flowunit_mappings.json)
+rather than implicit name matching in the importer. Each entry has an exact
+legacy-name key, an approved **Rust Registry** target, CPU device constraint,
+individual input/output **port mappings**, and a typed required/optional
+configuration mapping. The manifest is a reviewed contract for the **local
+text-only fixtures**, **not an assertion** that a separately installed C++ or
+Python ModelBox plugin with a matching name has the same behavior.
+
+| Fixture-scoped legacy identifier | Rust FlowUnit | Port contract | Config |
+| --- | --- | --- | --- |
+| `text.uppercase` | `text.uppercase` | `in → in`, `out → out` | none |
+| `text.prefix` | `text.prefix` | `in → in`, `out → out` | required string `prefix → prefix` |
+| `text.concat` | `text.concat` | `left → left`, `right → right`, `out → out` | none |
+
+Additional known original ModelBox FlowUnits, such as `resize`,
+`model_detect`, `yolobox_post`, and the HTTP receive/reply family, are
+explicitly **unmapped**. Their actual buffer/device/lifecycle behavior has
+not been recreated and must be implemented and demonstrated separately;
+their presence in a graph does not authorize import.
+
+```bash
+python3 scripts/verify_legacy_mappings.py
+```
+
+The audit invokes the **compiled Rust CLI `catalog --json`**, then checks
+that every target FlowUnit is present, the exact port names and `text`
+data types match, the node is not a source, and all known required string
+config keys agree. CI runs this audit on each Studio build. It does **not**
+prove full config schema equivalence (the Rust catalog itself reports that
+schemas are not complete), foreign driver compatibility, or production
+performance equivalence. Import still additionally requires native
+`modelbox validate` and browser end-to-end execution.
+
+Official legacy graph examples and their non-Rust CPU/CUDA contracts:
+[ModelBox SDK graph configuration](https://modelbox-ai.com/modelbox-book/use-modelbox/sdk-mode/c%2B%2B.html);
+[ModelBox HTTP FlowUnit example](https://modelbox-ai.com/modelbox-book/plugins/modelbox-plugin.html).
